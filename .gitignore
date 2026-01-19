@@ -11,6 +11,7 @@ venv/
 # Google OAuth / secrets
 credentials.json
 token.pickle
+.env
 
 # OS / editor noise
 .DS_Store
