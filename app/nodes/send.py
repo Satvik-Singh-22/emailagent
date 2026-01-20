@@ -12,15 +12,39 @@ def send_node(state):
     try:
         service = get_gmail_service()
         print("Service found successfully")
-        print(state.get("recipient"))
-        print(state.get("subject"))
+
+        recipients = state.get("recipient") or {"to": [], "cc": [], "bcc": []}
+
+        to_list = recipients.get("to", [])
+        cc_list = recipients.get("cc", [])
+        bcc_list = recipients.get("bcc", [])
         
+        # 🔒 Invariants
+        assert isinstance(to_list, list)
+        assert isinstance(cc_list, list)
+        assert isinstance(bcc_list, list)
+        assert not (set(to_list) & set(cc_list) or
+                    set(to_list) & set(bcc_list) or
+                    set(cc_list) & set(bcc_list)), \
+            "Recipient overlap between to/cc/bcc"
+
+        to_str = ", ".join(to_list)
+        cc_str = ", ".join(cc_list) if cc_list else None
+        bcc_str = ", ".join(bcc_list) if bcc_list else None
+
+        print("To:", to_str)
+        print("Subject:", state.get("subject"))
+        print("CC:", cc_str)
+        print("BCC:", bcc_str)
+
         send_email(
             service=service,
-            to=state.get("recipient"),
+            to=to_str,
             subject=state.get("subject"),
             body=state.get("draft"),
-            approval_status="APPROVED"
+            approval_status="APPROVED",
+            cc=cc_str,
+            bcc=bcc_str,
         )
         print("✅ Email sent successfully.")
         

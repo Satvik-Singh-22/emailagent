@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from google import genai
+import json
 
 load_dotenv() 
 
@@ -14,7 +15,7 @@ def call_gemini(prompt: str) -> str:
     )
     return response.text
 
-def interpret_intent(user_prompt: str) -> str:
+def interpret_intent(user_prompt: str) -> dict:
     """
     Classifies the user prompt into a structured intent.
     Returns JSON string with keys: 'intent', 'parameters'.
@@ -41,13 +42,16 @@ INTENTS:
 4. UNKNOWN  
    - Anything that does not clearly match the above.
 
-OUTPUT FORMAT (STRICT):
-Return ONLY a valid raw JSON object.
+OUTPUT FORMAT (STRICT JSON ONLY):
 Do NOT include markdown, explanations, or extra text.
-
+  {
     "intent": "CHECK_INBOX | COMPOSE | EXIT | UNKNOWN",
     "parameters": {
-      "recipient": string | null,
+      "recipient":{
+        "to": [],
+        "cc": [],
+        "bcc": []
+      },
       "subject": string | null,
       "body": string | null
     },
@@ -73,4 +77,17 @@ Do NOT include markdown, explanations, or extra text.
         model="gemini-2.5-flash",
         contents=f"{system_instruction}\nUser Prompt: {user_prompt}"
     )
-    return response.text.replace("```json", "").replace("```", "").strip()
+
+    raw_text = (
+        response.text
+        .replace("```json", "")
+        .replace("```", "")
+        .strip()
+    )
+
+    try:
+        parsed = json.loads(raw_text)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Gemini returned invalid JSON:\n{raw_text}") from e
+
+    return parsed

@@ -18,32 +18,33 @@ def input_agent_node(state):
     print(f"Thinking about: '{user_prompt}'")
     
     try:
-        analysis_json = interpret_intent(user_prompt)
-        analysis = json.loads(analysis_json)
+        analysis = interpret_intent(user_prompt)
     except Exception as e:
         print(f"⚠️ Intent recognition failed: {e}")
         # Fallback to simple keyword matching or just UNKNOWN
-        if "check" in user_prompt.lower() or "inbox" in user_prompt.lower():
-             analysis = {"intent": "CHECK_INBOX", "parameters": {}, "filters": {}}
-        elif "write" in user_prompt.lower() or "send" in user_prompt.lower() or "email" in user_prompt.lower():
-             # Basic fallback for compose, though params will be empty
-             analysis = {"intent": "COMPOSE", "parameters": {}, "filters": {}}
-        else:
-             analysis = {"intent": "UNKNOWN", "parameters": {}, "filters": {}}
+        analysis = {
+            "intent": "UNKNOWN",
+            "parameters": {
+                "recipient": {"to": [], "cc": [], "bcc": []},
+                "subject": None,
+                "body": None
+            },
+            "filters": {
+                "priority": "ANY",
+                "time_range": None,
+                "limit": 5
+            }
+        }
 
-    intent = analysis.get("intent", "UNKNOWN")
-    filters = analysis.get("filters", {})
-    params = analysis.get("parameters", {})
-    
-    # Update state
-    state["mode"] = intent  # repurpose mode or use a new key? generic 'mode' works.
-    
-    # Store detailed structure
-    state["filter_criteria"] = filters
-    state["recipient"] = params.get("recipient")
-    state["subject"] = params.get("subject")
-    state["body"] = params.get("body")
-    
-    print(f"DEBUG: Intent={intent}, Filters={filters}")
+
+    state["mode"] = analysis["intent"]
+    state["filter_criteria"] = analysis["filters"]
+
+    params = analysis["parameters"]
+    state["recipient"] = params["recipient"]
+    state["subject"] = params["subject"]
+    state["body"] = params["body"]
+
+    print(f"DEBUG: Intent={state['mode']}, Filters={state['filter_criteria']}")
     
     return state

@@ -3,16 +3,25 @@ def review_node(state):
     Interactively asks the user to review the draft.
     Returns the state with 'user_action' set to SEND, EDIT, or CANCEL.
     """
+    assert isinstance(state["recipient"]["to"], list), \
+        "Invariant violated: recipient.to must be a list"
+    recipients = state["recipient"]
+    subject = state.get("subject") or "No Subject"
     draft = state.get("draft", "")
-    recipient = state.get("recipient", "Unknown")
-    subject = state.get("subject", "No Subject")
+
+    def join(lst):
+        return ", ".join(lst) if lst else "—"
 
     print("\n--- DRAFT REVIEW ---")
-    print(f"To: {recipient}")
+    print(f"To:  {join(recipients.get('to', []))}")
+    print(f"CC:  {join(recipients.get('cc', []))}")
+    print(f"BCC: {join(recipients.get('bcc', []))}")
     print(f"Subject: {subject}")
     print("-" * 20)
     print(draft)
     print("-" * 20)
+
+
 
     while True:
         choice = input("\n[S]end / [E]dit / [C]ancel: ").strip().lower()
@@ -27,6 +36,7 @@ def review_node(state):
             state["approval_status"] = "REJECTED"
             instructions = input("What changes would you like? ")
             state["edit_instructions"] = instructions
+            # print (state["edit_instructions"])
             break
 
         elif choice in ["c", "cancel"]:
