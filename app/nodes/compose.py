@@ -7,6 +7,7 @@ def compose_node(state):
     current_draft = state.get("draft", "")
 
     recipients = state["recipient"]
+    attachments = state["attachments"]
     subject = state.get("subject")
     body_hint = state.get("body")
 
@@ -35,6 +36,7 @@ JSON SCHEMA (MUST MATCH EXACTLY):
     "cc": string[],
     "bcc": string[]
   }},
+  "attachments": string[],
   "body": string
 }}
 
@@ -46,6 +48,7 @@ Current Email:
     "cc": {cc_list},
     "bcc": {bcc_list}
   }},
+  "attachments": {attachments},
   "body": "{current_draft}"
 }}
 
@@ -53,13 +56,21 @@ User Requested Changes:
 {edit_instructions}
 
 IMPORTANT:
-- Recipient lists (to/cc/bcc) MUST be treated as mutable arrays.
+- The following fields are MUTABLE ARRAYS and MUST be updated deterministically if mentioned:
+  - recipient.to
+  - recipient.cc
+  - recipient.bcc
+  - attachments
+
 - Apply add/remove operations EXACTLY as requested.
-- If a recipient is removed, it MUST NOT appear in the output arrays.
-- If a recipient is added, it MUST appear in the correct array.
-- Do NOT ignore recipient changes.
+- If an item is removed, it MUST NOT appear in the output array.
+- If an item is added, it MUST appear in the correct output array.
+- If a field is NOT mentioned by the user, copy it unchanged.
+- You MUST NOT ignore requested changes.
+
 - Do NOT add placeholders like [Your Name].
-- Preserve existing signature OR use 'Email Agent' OR leave blank.
+- Preserve the existing signature OR use 'Email Agent' OR leave blank.
+
 """
 
         raw = call_llm(llm_prompt, "compose").strip()
@@ -75,12 +86,14 @@ IMPORTANT:
         assert isinstance(data["recipient"]["to"], list)
         assert isinstance(data["recipient"]["cc"], list)
         assert isinstance(data["recipient"]["bcc"], list)
+        assert isinstance(data["attachments"], list)
         assert isinstance(data["subject"], str)
         assert isinstance(data["body"], str)
 
         # ✅ Apply Gemini edits
         state["subject"] = data["subject"]
         state["recipient"] = data["recipient"]
+        state["attachments"] = data["attachments"]
         state["draft"] = data["body"]
         state["approval_status"] = "REQUIRED"
         state["summary"] = f"Draft prepared for {join(data['recipient']['to']) or 'Unknown'}"
@@ -99,6 +112,7 @@ Context:
 To: {join(to_list)}
 CC: {join(cc_list)}
 BCC: {join(bcc_list)}
+attachments: {attachments}
 Subject: {subject}
 Intent: {body_hint or prompt}
 

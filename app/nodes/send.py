@@ -45,6 +45,7 @@ def send_node(state):
             approval_status="APPROVED",
             cc=cc_str,
             bcc=bcc_str,
+            attachments=state.get("attachments"),
         )
         print("✅ Email sent successfully.")
         

@@ -8,6 +8,7 @@ def review_node(state):
     recipients = state["recipient"]
     subject = state.get("subject") or "No Subject"
     draft = state.get("draft", "")
+    attachments = state.get("attachments") or []
 
     def join(lst):
         return ", ".join(lst) if lst else "—"
@@ -17,6 +18,10 @@ def review_node(state):
     print(f"CC:  {join(recipients.get('cc', []))}")
     print(f"BCC: {join(recipients.get('bcc', []))}")
     print(f"Subject: {subject}")
+    if attachments:
+        print("Attachments:")
+        for a in attachments:
+            print(f" - {a}")
     print("-" * 20)
     print(draft)
     print("-" * 20)

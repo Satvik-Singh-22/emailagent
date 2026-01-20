@@ -53,7 +53,8 @@ Do NOT include markdown, explanations, or extra text.
         "bcc": []
       },
       "subject": string | null,
-      "body": string | null
+      "body": string | null,
+      "attachments": [],
     },
     "filters": {
       "priority": "HIGH" | "MEDIUM" | "LOW" | "ANY",

@@ -44,6 +44,7 @@ def input_agent_node(state):
     state["recipient"] = params["recipient"]
     state["subject"] = params["subject"]
     state["body"] = params["body"]
+    state["attachments"] = params["attachments"]
 
     print(f"DEBUG: Intent={state['mode']}, Filters={state['filter_criteria']}")
     
