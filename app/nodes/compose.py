@@ -1,4 +1,5 @@
 from app.llm.router import call_llm
+from app.utils.reasoning import add_reasoning
 import json
 
 def compose_node(state):
@@ -20,7 +21,7 @@ def compose_node(state):
 
     # ================= EDIT MODE (JSON ONLY) =================
     if edit_instructions:
-        # print(edit_instructions)
+        add_reasoning(state, "User requested edits — applying requested changes while preserving unchanged fields.")
         llm_prompt = f"""
 You are a STRICT EMAIL EDITOR.
 
@@ -99,9 +100,11 @@ IMPORTANT:
         state["summary"] = f"Draft prepared for {join(data['recipient']['to']) or 'Unknown'}"
         state["risk_flags"] = ["USER_COMPOSE"]
         state["edit_instructions"] = None
+        add_reasoning(state, "Edits applied to draft.")
         return state
 
     # ================= CREATE MODE (TEXT OK) =================
+    add_reasoning(state, "Creating a new email draft from the provided intent.")
     llm_prompt = f"""
 You are an email writing assistant.
 
@@ -154,5 +157,5 @@ BODY:
     state["approval_status"] = "REQUIRED"
     state["summary"] = f"Draft prepared for {join(to_list) or 'Unknown'}"
     state["risk_flags"] = ["USER_COMPOSE"]
-
+    add_reasoning(state, "Draft created.")
     return state

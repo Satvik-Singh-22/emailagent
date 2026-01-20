@@ -35,7 +35,7 @@ class EmailAgentState(TypedDict):
     body: Optional[str]
     recipient: Optional[Recipients]
     attachments: Optional[List[str]]
-    
+
     edit_instructions: Optional[str]
 
     # ===== Approval =====
@@ -45,3 +45,7 @@ class EmailAgentState(TypedDict):
 
     # ===== Sending =====
     sent: Optional[bool]
+
+    # ===== Reasoning =====
+    show_reasoning: Optional[bool]
+    reasoning: Optional[List[str]]

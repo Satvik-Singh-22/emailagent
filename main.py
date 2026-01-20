@@ -1,5 +1,6 @@
 import sys
 from app.graph.graph import build_graph
+# from app.graph.state import EmailAgentState
 
 def run_interactive_mode():
     print("=== EMAIL AGENT INTERACTIVE MODE ===")
@@ -14,9 +15,27 @@ def run_interactive_mode():
 
     while True:
         try:
+
+            # user_input = input("\nYou (h for help menu): ").strip()
             user_input = input("\nYou: ").strip()
             if not user_input:
                 continue
+
+            # if user_input.strip().lower() == "h":
+            #     print("h : help menu (this)\nthink on : show reasoning\nthink off : stop showing reasoning\n exit/quit/q : exit")
+            #     continue
+
+            # if user_input.strip().lower() == "think on":
+            #     state["show_reasoning"] = True
+            #     state["reasoning"] = []   # start fresh
+            #     print("Reasoning enabled.")
+            #     continue
+
+            # if user_input.strip().lower() == "think off":
+            #     state["show_reasoning"] = False
+            #     state["reasoning"] = []
+            #     print("Reasoning disabled.")
+            #     continue
 
             if user_input.lower() in ["exit", "quit", "q"]:
                 print("Goodbye!")

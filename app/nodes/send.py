@@ -1,5 +1,6 @@
 from app.gmail.send import send_email
 from app.gmail.client import get_gmail_service
+from app.utils.reasoning import add_reasoning
 
 def send_node(state):
     """
@@ -37,6 +38,17 @@ def send_node(state):
         print("CC:", cc_str)
         print("BCC:", bcc_str)
 
+        if state.get("attachments"):
+            add_reasoning(state, "SUser approved the draft. Sending email with final recipients and attachments.")
+        else:
+            add_reasoning(state, "User approved the draft. Sending email with final recipients.")
+
+        if state.get("show_reasoning"):
+            print("\n--- REASONING ---")
+        for line in state.get("reasoning", []):
+            print(f"- {line}")
+        print("-----------------\n")
+
         send_email(
             service=service,
             to=to_str,
@@ -47,8 +59,18 @@ def send_node(state):
             bcc=bcc_str,
             attachments=state.get("attachments"),
         )
-        print("✅ Email sent successfully.")
-        
+        # print("✅ Email sent successfully.")
+        add_reasoning(state, "Email sent.")
+
+        if state.get("show_reasoning"):
+            print("\n--- REASONING ---")
+        for line in state.get("reasoning", []):
+            print(f"- {line}")
+        print("-----------------\n")
+
+        # Optionally clear reasoning so next session starts fresh:
+        state["reasoning"] = []
+
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
         # In a real app we might want to loop back to review on failure

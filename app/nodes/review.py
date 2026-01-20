@@ -1,3 +1,5 @@
+from app.utils.reasoning import add_reasoning
+
 def review_node(state):
     """
     Interactively asks the user to review the draft.
@@ -12,6 +14,15 @@ def review_node(state):
 
     def join(lst):
         return ", ".join(lst) if lst else "—"
+
+    add_reasoning(state, "Presenting the current draft for your review.")
+
+    if state.get("show_reasoning"):
+        print("\n--- REASONING ---")
+    for line in state.get("reasoning", []):
+        print(f"- {line}")
+    print("-----------------\n")
+
 
     print("\n--- DRAFT REVIEW ---")
     print(f"To:  {join(recipients.get('to', []))}")
