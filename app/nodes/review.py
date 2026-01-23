@@ -1,43 +1,18 @@
-from app.utils.reasoning import add_reasoning
-
 def review_node(state):
     """
     Interactively asks the user to review the draft.
     Returns the state with 'user_action' set to SEND, EDIT, or CANCEL.
     """
-    assert isinstance(state["recipient"]["to"], list), \
-        "Invariant violated: recipient.to must be a list"
-    recipients = state["recipient"]
-    subject = state.get("subject") or "No Subject"
     draft = state.get("draft", "")
-    attachments = state.get("attachments") or []
-
-    def join(lst):
-        return ", ".join(lst) if lst else "—"
-
-    add_reasoning(state, "Presenting the current draft for your review.")
-
-    if state.get("show_reasoning"):
-        print("\n--- REASONING ---")
-    for line in state.get("reasoning", []):
-        print(f"- {line}")
-    print("-----------------\n")
-
+    recipient = state.get("recipient", "Unknown")
+    subject = state.get("subject", "No Subject")
 
     print("\n--- DRAFT REVIEW ---")
-    print(f"To:  {join(recipients.get('to', []))}")
-    print(f"CC:  {join(recipients.get('cc', []))}")
-    print(f"BCC: {join(recipients.get('bcc', []))}")
+    print(f"To: {recipient}")
     print(f"Subject: {subject}")
-    if attachments:
-        print("Attachments:")
-        for a in attachments:
-            print(f" - {a}")
     print("-" * 20)
     print(draft)
     print("-" * 20)
-
-
 
     while True:
         choice = input("\n[S]end / [E]dit / [C]ancel: ").strip().lower()
@@ -52,7 +27,6 @@ def review_node(state):
             state["approval_status"] = "REJECTED"
             instructions = input("What changes would you like? ")
             state["edit_instructions"] = instructions
-            # print (state["edit_instructions"])
             break
 
         elif choice in ["c", "cancel"]:

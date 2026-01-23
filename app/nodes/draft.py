@@ -19,7 +19,7 @@ STRICT RULES:
 - Do NOT send anything
 - Do NOT make legal or financial commitments
 - Do NOT confirm agreements or obligations
-- Keep tone professional and neutral
+- Keep tone professional and neutral unless otherwise asked or used in the summary or extracted details
 - Ask clarifying questions if needed
 
 Context summary:

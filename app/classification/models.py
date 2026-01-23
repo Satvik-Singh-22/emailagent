@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
 
 class SenderType(Enum):
@@ -38,10 +38,12 @@ class ClassificationResult:
 
 @dataclass
 class IntentDetection:
-    intents: List[str]  # e.g., 'legal', 'finance', 'urgent'
+    intents: List[str]
     urgency_keywords: List[str]
+    urgency_score: int
     action_required: bool
     question_detected: bool
+    is_follow_up: bool
 
 @dataclass
 class PriorityScore:
@@ -49,3 +51,24 @@ class PriorityScore:
     priority_level: PriorityLevel
     factors: dict
     reasoning: str
+
+@dataclass
+class SecurityFlag:
+    flag_type: str
+    severity: str
+    description: str
+    details: dict
+    blocks_sending: bool
+
+@dataclass
+class DraftReply:
+    subject: str
+    body: str
+
+@dataclass
+class ProcessedEmail:
+    metadata: Any # Should be EmailMetadata but for flexibility Any
+    draft_reply: Optional[DraftReply] = None
+    security_flags: List[SecurityFlag] = field(default_factory=list)
+    has_pii: bool = False
+    

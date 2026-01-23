@@ -1,14 +1,11 @@
 import json
 from app.llm.gemini import interpret_intent
-from app.utils.reasoning import add_reasoning
 
 def input_agent_node(state):
     """
     Analyzes the user prompt and determines the intent, filters, and parameters.
     Default router / decision diamond.
     """
-    state.setdefault("show_reasoning", True)
-    state.setdefault("reasoning", [])
     user_prompt = state.get("user_prompt", "")
     
     if not user_prompt:
@@ -25,38 +22,27 @@ def input_agent_node(state):
     except Exception as e:
         print(f"⚠️ Intent recognition failed: {e}")
         # Fallback to simple keyword matching or just UNKNOWN
-        analysis = {
-            "intent": "UNKNOWN",
-            "parameters": {
-                "recipient": {"to": [], "cc": [], "bcc": []},
-                "subject": None,
-                "body": None
-            },
-            "filters": {
-                "priority": "ANY",
-                "time_range": None,
-                "limit": 5
-            }
-        }
-
-
-    state["mode"] = analysis["intent"]
-    state["filter_criteria"] = analysis["filters"]
-
-    params = analysis["parameters"]
-    state["recipient"] = params["recipient"]
-    state["subject"] = params["subject"]
-    state["body"] = params["body"]
-    state["attachments"] = params["attachments"]
-
-    add_reasoning(state, f"Detected intent: {state['mode']}.")
-    if state["mode"] == "CHECK_INBOX":
-        pr = state["filter_criteria"].get("priority", "ANY")
-        if pr != "ANY":
-            add_reasoning(state, f"Checking inbox with priority filter: {pr}.")
+        if "check" in user_prompt.lower() or "inbox" in user_prompt.lower():
+             analysis = {"intent": "CHECK_INBOX", "parameters": {}, "filters": {}}
+        elif "write" in user_prompt.lower() or "send" in user_prompt.lower() or "email" in user_prompt.lower():
+             # Basic fallback for compose, though params will be empty
+             analysis = {"intent": "COMPOSE", "parameters": {}, "filters": {}}
         else:
-            add_reasoning(state, "Checking inbox with no special filters.")
-    elif state["mode"] == "COMPOSE":
-        add_reasoning(state, "Preparing to compose a new email.")
-        
+             analysis = {"intent": "UNKNOWN", "parameters": {}, "filters": {}}
+
+    intent = analysis.get("intent", "UNKNOWN")
+    filters = analysis.get("filters", {})
+    params = analysis.get("parameters", {})
+    
+    # Update state
+    state["mode"] = intent  # repurpose mode or use a new key? generic 'mode' works.
+    
+    # Store detailed structure
+    state["filter_criteria"] = filters
+    state["recipient"] = params.get("recipient")
+    state["subject"] = params.get("subject")
+    state["body"] = params.get("body")
+    
+    print(f"DEBUG: Intent={intent}, Filters={filters}")
+    
     return state

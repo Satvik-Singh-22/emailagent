@@ -118,6 +118,12 @@ class SenderClassifier:
         """Check if sender looks like spam"""
         email = email or ""
         domain = domain or ""
+        
+        # Whitelist trusted domains - never mark as spam even if noreply
+        trusted_domains = ['github.com', 'linear.app', 'slack.com', 'google.com', 'linkedin.com']
+        if domain in trusted_domains:
+            return False
+            
         spam_patterns = [
             'noreply', 'no-reply', 'donotreply', 'notification',
             'marketing', 'newsletter', 'promo', 'deals'
@@ -131,9 +137,9 @@ class SenderClassifier:
         # Generic free email providers + random chars pattern
         free_providers = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com']
         if domain in free_providers:
-            # Check for random character patterns
+            # Check for random character patterns - relax to >5 digits to avoid false positives
             local_part = email.split('@')[0]
-            if len(local_part) > 15 or re.search(r'\d{4,}', local_part):
+            if len(local_part) > 15 or re.search(r'\d{6,}', local_part):
                 return True
         
         return False

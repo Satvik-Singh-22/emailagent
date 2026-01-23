@@ -13,11 +13,17 @@ def fetch_node(state):
     # Advanced filtering logic can be added to fetch_recent_emails later 
     # or filtered in-memory here/classify node.
     
-    print(f"DEBUG: Fetching {limit} emails...")
+    # If filtering by priority, fetch more to increase chance of finding matches
+    target_priority = filters.get("priority", "ANY")
+    fetch_limit = limit
+    if target_priority != "ANY":
+        fetch_limit = max(limit * 3, 20) # Fetch at least 20 or 3x request
+        
+    print(f"DEBUG: Fetching {fetch_limit} emails (Limit: {limit})...")
     
     try:
         service = get_gmail_service()
-        emails = fetch_recent_emails(service, max_results=limit)
+        emails = fetch_recent_emails(service, max_results=fetch_limit)
     except Exception as e:
         print(f"Error fetching emails: {e}")
         emails = []

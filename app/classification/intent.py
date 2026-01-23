@@ -10,9 +10,18 @@ class IntentScanner:
         subject = subject or ""
         body = body or ""
         text = (subject + " " + body).lower()
-        
+        FOLLOW_UP_PHRASES = ["any update", "following up", "reminder", "checking in"]
+        is_follow_up = any(p in text for p in FOLLOW_UP_PHRASES)
+
         # 1. Check Urgency
-        detected_urgency = [w for w in Config.URGENCY_KEYWORDS if w in text]
+        detected_urgency = []
+        urgency_score = 0
+
+        for keyword, weight in Config.URGENCY_KEYWORDS.items():
+            if keyword in text:
+                detected_urgency.append(keyword)
+                urgency_score += weight
+
         
         # 2. Check Action/Question
         action_required = any(phrase in text for phrase in ["please", "could you", "can you", "action needed"])
@@ -24,12 +33,24 @@ class IntentScanner:
             intents.append("legal")
         if any(w in text for w in Config.FINANCE_KEYWORDS):
             intents.append("finance")
-        if "complaint" in text or "unhappy" in text:
+        if any(w in text for w in Config.IT_KEYWORDS):
+            intents.append("it")
+        if any(w in text for w in Config.HR_KEYWORDS):
+            intents.append("hr")
+        if any(w in text for w in Config.MEETING_KEYWORDS):
+            intents.append("meeting")
+        if any(w in text for w in Config.INVITATION_KEYWORDS):
+            intents.append("invitation")
+            
+        if any(w in text for w in Config.COMPLAINT_KEYWORDS) or "unhappy" in text:
             intents.append("complaint")
             
         return IntentDetection(
             intents=intents,
             urgency_keywords=detected_urgency,
+            urgency_score=min(urgency_score, 20),
             action_required=action_required,
-            question_detected=question_detected
-        )
+            question_detected=question_detected,
+            is_follow_up=is_follow_up
+)
+

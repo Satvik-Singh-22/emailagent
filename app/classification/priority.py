@@ -40,6 +40,13 @@ class PriorityScorer:
         
         # Factor 1: Sender importance (0-40 points)
         sender_score = self._score_sender(classification)
+        
+        # Boost sender score for complaints - treat as at least 'customer' level importance
+        if 'complaint' in intent.intents:
+            sender_score = max(sender_score, 25)
+            
+        if not intent.urgency_keywords and not intent.action_required and 'complaint' not in intent.intents and 'invitation' not in intent.intents:
+            sender_score = min(sender_score, 20)
         factors['sender_importance'] = sender_score
         score += sender_score
         
@@ -67,6 +74,12 @@ class PriorityScorer:
         category_score = self._score_category(intent)
         factors['special_category'] = category_score
         score += category_score
+        
+        # Urgency Override: If urgency is high, push to at least MEDIUM priority (50)
+        # unless it's explicitly spam
+        if intent.urgency_score >= 15:
+            score = max(score, 50)
+            logger.info("Urgency override triggered: Score boosted to minimum 50")
         
         # Ensure score is within 0-100
         score = max(0, min(100, int(score)))
@@ -104,28 +117,24 @@ class PriorityScorer:
         return sender_scores.get(classification.sender_type.value, 5)
     
     def _score_urgency(self, intent: IntentDetection) -> int:
-        """Score based on urgency keywords (0-20)"""
-        urgency_count = len(intent.urgency_keywords)
-        
-        if urgency_count == 0:
-            return 0
-        elif urgency_count == 1:
-            return 10
-        elif urgency_count == 2:
-            return 15
-        else:
-            return 20
+        return min(intent.urgency_score, 20)
     
     def _score_action(self, intent: IntentDetection) -> int:
         """Score based on action required (0-15)"""
         score = 0
-        
+
         if intent.action_required:
-            score += 10
-        
+            score += 8
+
         if intent.question_detected:
-            score += 5
-        
+            score += 4
+
+        if intent.action_required and intent.question_detected:
+            score += 3
+
+        if intent.is_follow_up:
+            score += 3
+
         return min(score, 15)
     
     def _score_age(self, email_date: datetime) -> int:
@@ -176,15 +185,27 @@ class PriorityScorer:
         score = 0
         
         # Legal or finance = high priority bonus
-        if 'legal' in intent.intents:
+        # 1. High Priority (+15)
+        if 'complaint' in intent.intents:
+            score += 15
+        elif 'invitation' in intent.intents:
+            score += 15
+            
+        # 2. Medium Priority (+5)
+        elif 'legal' in intent.intents:
             score += 5
         elif 'finance' in intent.intents:
             score += 5
-        # Complaint = medium priority bonus
-        elif 'complaint' in intent.intents:
+        elif 'it' in intent.intents:
+            score += 5
+        elif 'hr' in intent.intents:
+            score += 5
+            
+        # 3. Low Priority (+3)
+        elif 'meeting' in intent.intents:
             score += 3
         
-        return min(score, 5)
+        return min(score, 15)
     
     def _determine_level(self, score: int) -> PriorityLevel:
         """

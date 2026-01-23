@@ -7,23 +7,60 @@ def inbox_review_node(state):
     filters = state.get("filter_criteria", {})
     
     # 1. Filter Logic
+    # 1. Filter & Sort Logic
     target_priority = filters.get("priority", "ANY")
-    filtered_emails = []
+    limit = filters.get("limit", 5)
+    
+    # Priority mapping for sorting
+    prio_map = {"HIGH": 3, "MEDIUM": 2, "LOW": 1, "NOT_REQUIRED": 0, "MED": 2}
+    
+    candidates = []
     
     for email in emails:
-        # Check priority match
-        prio = email.get("classification", {}).get("priority", "MEDIUM")
-        if target_priority != "ANY" and prio != target_priority:
-            continue
-        filtered_emails.append(email)
+        prio_str = email.get("classification", {}).get("priority", "MEDIUM")
+        # Normalize MEDIUM/MED
+        if prio_str == "medium": prio_str = "MEDIUM"
+        if prio_str == "high": prio_str = "HIGH" 
+        if prio_str == "low": prio_str = "LOW"
+        if prio_str == "not_required": prio_str = "NOT_REQUIRED"
+        
+        candidates.append((email, prio_map.get(prio_str, 1)))
 
-    if not filtered_emails:
-        print(f"\nNo emails found matching filter: {filters}")
+    # Sort by priority desc
+    candidates.sort(key=lambda x: x[1], reverse=True)
+    
+    final_list = []
+    
+    if target_priority in ["HIGH", "MEDIUM"]:
+        # Cascading Logic: 
+        # If user asked for High/Medium, we show the best ones we found, 
+        # filtering out junk (NOT_REQUIRED) unless we are desperate?
+        # Let's filter out NOT_REQUIRED for "Important" queries
+        final_list = [c[0] for c in candidates if c[1] > 0][:limit]
+        display_mode = f"Top {len(final_list)} Important"
+    else:
+        # Standard ANY filter (just show latest, but since we fetched recent, main list is time sorted mostly)
+        # But here we sorted by priority? 
+        # If ANY, maybe we should respect time?
+        # Let's revert to time sort for ANY? 
+        # Actually input usually implies "Check inbox" -> show recent.
+        # But if we sorted by priority above, we messed up time order.
+        # For ANY, let's keep original order.
+        if target_priority == "ANY":
+             final_list = emails[:limit]
+             display_mode = "Recent"
+        else:
+             # Specific filter logic (e.g. LOW only? Not supported yet really)
+             final_list = [c[0] for c in candidates][:limit]
+             display_mode = f"Filter: {target_priority}"
+
+    if not final_list:
+        print(f"\nNo emails found matching criteria.")
         return {**state, "user_action": "DONE"}
 
     # 2. Display List
-    print(f"\n=== INBOX ({len(filtered_emails)}) - Filter: {target_priority} ===")
-    for i, email in enumerate(filtered_emails):
+    print(f"\n=== INBOX ({len(final_list)}) - {display_mode} ===")
+    for i, email in enumerate(final_list):
         prio = email.get("classification", {}).get("priority", "MED")
         subject = email.get("subject", "No Subject")
         sender = email.get("from", "Unknown")
@@ -41,8 +78,8 @@ def inbox_review_node(state):
         
         try:
             idx = int(choice) - 1
-            if 0 <= idx < len(filtered_emails):
-                selected_email = filtered_emails[idx]
+            if 0 <= idx < len(final_list):
+                selected_email = final_list[idx]
                 
                 # Load selected email into main context for other nodes
                 state["raw_thread"] = selected_email
