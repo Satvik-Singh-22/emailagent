@@ -11,7 +11,7 @@ def draft_node(state):
 
     # If approval is required, draft must be extra conservative
     conservative_mode = approval_status == "REQUIRED"
-    memories = state.get("compose_memory", []) or []
+    memories = state.get("reply_memory", []) or []
     memory_prefs = summarize_compose_memory(memories)
 
     tone_hint = (

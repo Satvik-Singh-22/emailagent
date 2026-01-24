@@ -83,6 +83,8 @@ def memory_write_node(state):
                     "thread_id": state.get("thread_id"),
                     "cc": state.get("cc"),
                     "bcc": state.get("bcc"),
+                    "tone": state.get("reply_metadata", {}).get("tone"),
+                    "brevity": state.get("reply_metadata", {}).get("brevity"),
                 }
             }
             supabase.from_("reply_memory").insert(reply_data).execute()
