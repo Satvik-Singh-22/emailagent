@@ -18,8 +18,7 @@ def compose_node(state):
     cc_list = recipients.get("cc", [])
     bcc_list = recipients.get("bcc", [])
 
-    # 🧠 Episodic memory (optional, safe)
-    memories = state.get("episodic_memory", []) or []
+    memories = state.get("compose_memory", []) or []
     memory_prefs = summarize_compose_memory(memories)
 
     tone_hint = (

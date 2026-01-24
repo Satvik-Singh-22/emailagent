@@ -2,6 +2,7 @@ from app.memory.supabase_client import supabase
 from app.memory.embeddings import embed_text
 
 def memory_retrieve_node(state):
+    print("retrieving memory!!!!")
     user_id = state.get("user_id", "default_user")
 
     query_text = (
@@ -11,31 +12,33 @@ def memory_retrieve_node(state):
     )
 
     if not query_text.strip():
-        state["episodic_memory"] = []
+        state["compose_memory"] = []
+        state["reply_memory"] = []
         return state
 
     try:
         query_embedding = embed_text(query_text)
     except Exception as e:
         print("⚠️ Memory retrieval embedding failed:", e)
-        state["episodic_memory"] = []
+        state["compose_memory"] = []
+        state["reply_memory"] = []
         return state
 
-    # Determine which memory store to search based on intent
+    # Decide which memory to retrieve
     rpc_func = None
-    
-    # 1. Composing a new email (COMPOSE mode)
+    target_key = None
+
     if state.get("mode") == "COMPOSE":
-        rpc_func = "match_compose_memories"
-    
-    # 2. Replying to an email (REPLY action)
+        rpc_func = "match_compose_prompt_memory"
+        target_key = "compose_memory"
+
     elif state.get("user_action") == "REPLY":
-        rpc_func = "match_reply_memories"
-        
-    # If no specific context, we might skip retrieval or default to something else.
-    # For now, if no RPC selected, return empty.
+        rpc_func = "match_reply_memory"
+        target_key = "reply_memory"
+
     if not rpc_func:
-        state["episodic_memory"] = []
+        state["compose_memory"] = []
+        state["reply_memory"] = []
         return state
 
     try:
@@ -43,19 +46,16 @@ def memory_retrieve_node(state):
             rpc_func,
             {
                 "query_embedding": query_embedding,
-                # "match_user_id": user_id, # Note: Current RPC helper might not filter by user_id if not added to schema, but usually good practice. 
-                # The schema.sql I added didn't strictly filter by user_id in the WHERE clause, 
-                # but let's assume global memory for now or that it's okay. 
-                # Ideally we should add user_id filter to RPC if needed.
+                "match_user_id": user_id,
                 "match_count": 3,
             }
         ).execute()
 
-        state["episodic_memory"] = response.data or []
-        print(f"🧠 Retrieved memories from {rpc_func}:", len(state["episodic_memory"]))
+        state[target_key] = response.data or []
+        print(f"🧠 Retrieved {len(state[target_key])} memories via {rpc_func}")
 
     except Exception as e:
         print(f"⚠️ Memory retrieval RPC ({rpc_func}) failed:", e)
-        state["episodic_memory"] = []
+        state[target_key] = []
 
     return state

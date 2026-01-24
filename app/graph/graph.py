@@ -42,22 +42,22 @@ def build_graph():
     graph.add_node("memory_retrieve", memory_retrieve_node)
 
     # Entry Point -> Input Agent (Router)
-    # graph.set_entry_point("input_agent")
-    graph.set_entry_point("memory_retrieve")
-    graph.add_edge("memory_retrieve", "input_agent")
-
-
+    graph.set_entry_point("input_agent")
+    
     # Router Logic
     graph.add_conditional_edges(
         "input_agent",
         lambda s: s.get("mode"),
         {
             "CHECK_INBOX": "fetch",
-            "COMPOSE": "compose",
+            "COMPOSE": "memory_retrieve",
             "EXIT": "memory_write",
             "UNKNOWN": "memory_write"
         }
     )
+    graph.add_edge("memory_retrieve", "compose")
+
+
 
 
     # Inbox Path
@@ -70,10 +70,12 @@ def build_graph():
         lambda s: s.get("user_action"),
         {
             "SUMMARIZE": "summarize",
-            "REPLY": "compose",
+            "REPLY": "memory_retrieve",
             "DONE": "memory_write"
         }
     )
+    graph.add_edge("memory_retrieve", "compose")
+
 
 
     # Summarize loops back to list
