@@ -1,5 +1,7 @@
 from app.memory.supabase_client import supabase
 from app.memory.embeddings import embed_text
+from app.gmail.client import get_gmail_service
+from app.gmail.utils import get_user_profile
 
 
 def memory_write_node(state):
@@ -11,6 +13,15 @@ def memory_write_node(state):
     
     # --- REQUIRED FIELDS ---
     user_id = state.get("user_id", "default_user")
+    
+    # Fallback if still default
+    if user_id == "default_user":
+        try:
+            service = get_gmail_service()
+            user_id = get_user_profile(service) or "default_user"
+        except Exception:
+            pass
+            
     # Intent mapping: 'mode' or derived from user_action
     intent = state.get("mode", "UNKNOWN")
     if state.get("user_action") == "REPLY":

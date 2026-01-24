@@ -47,7 +47,7 @@ def classify_node(state):
 
         # 3. Construct Output Format (Compatible with existing graph)
         classification = {
-            "priority": priority_result.priority_level.value.upper(),
+            "priority": priority_result.priority_level.value,
             "category": "WORK", # Placeholder or derived from intent
             "intent": "WAIT", # Placeholder
             "confidence": sender_result.confidence,

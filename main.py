@@ -1,10 +1,16 @@
 import sys
 from app.graph.graph import build_graph
+from app.utils.startup import run_startup_scan
+from app.gmail.utils import get_user_profile
+from app.gmail.client import get_gmail_service
 # from app.graph.state import EmailAgentState
 
 def run_interactive_mode():
     print("=== EMAIL AGENT INTERACTIVE MODE ===")
     print("Type 'exit' to quit.")
+    
+    # Run Startup Scan
+    run_startup_scan()
     
     # Compile graph once
     try:
@@ -45,8 +51,17 @@ def run_interactive_mode():
             
             # Unified Entry Point
             # The graph handles Intent -> Logic -> Action
+            
+            # Fetch current user email for context
+            try:
+                service = get_gmail_service()
+                current_user_email = get_user_profile(service) or "default_user"
+            except Exception:
+                current_user_email = "default_user"
+
             initial_state = {
                 "user_prompt": user_input,
+                "user_id": current_user_email,
                 "thread_id": "unified_session",
                 "emails": [], # Clear previous email context
                 "filter_criteria": {},
