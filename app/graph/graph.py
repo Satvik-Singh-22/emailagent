@@ -14,6 +14,9 @@ from app.nodes.fetch import fetch_node
 from app.nodes.inbox_review import inbox_review_node
 from app.nodes.review import review_node
 from app.nodes.send import send_node
+from app.memory.memory_write import memory_write_node
+from app.memory.memory_retrieve import memory_retrieve_node
+
 from langgraph.graph import END
 
 def build_graph():
@@ -35,9 +38,14 @@ def build_graph():
     graph.add_node("compose", compose_node)
     graph.add_node("review", review_node)
     graph.add_node("send", send_node)
+    graph.add_node("memory_write", memory_write_node)
+    graph.add_node("memory_retrieve", memory_retrieve_node)
 
     # Entry Point -> Input Agent (Router)
-    graph.set_entry_point("input_agent")
+    # graph.set_entry_point("input_agent")
+    graph.set_entry_point("memory_retrieve")
+    graph.add_edge("memory_retrieve", "input_agent")
+
 
     # Router Logic
     graph.add_conditional_edges(
@@ -46,10 +54,11 @@ def build_graph():
         {
             "CHECK_INBOX": "fetch",
             "COMPOSE": "compose",
-            "EXIT": END,
-            "UNKNOWN": END
+            "EXIT": "memory_write",
+            "UNKNOWN": "memory_write"
         }
     )
+
 
     # Inbox Path
     graph.add_edge("fetch", "classify")
@@ -62,9 +71,10 @@ def build_graph():
         {
             "SUMMARIZE": "summarize",
             "REPLY": "compose",
-            "DONE": END
+            "DONE": "memory_write"
         }
     )
+
 
     # Summarize loops back to list
     graph.add_edge("summarize", "inbox_review")
@@ -79,11 +89,11 @@ def build_graph():
         elif action == "EDIT":
             return "compose"
         elif action == "CANCEL":
-            # Return to inbox review if we have emails (implies we came from there)
             if state.get("emails"):
                 return "inbox_review"
-            return END
-        return END
+            return "memory_write"
+        return "memory_write"
+
 
     graph.add_conditional_edges(
         "review",
@@ -92,9 +102,10 @@ def build_graph():
             "send": "send",
             "compose": "compose",
             "inbox_review": "inbox_review",
-            END: END
+            "memory_write": "memory_write"
         }
     )
+
 
     # Send loops to inbox if in inbox mode, else END
     def after_send_router(state):
@@ -107,9 +118,12 @@ def build_graph():
         after_send_router,
         {
             "inbox_review": "inbox_review",
-            END: END
+            END: "memory_write"
         }
     )
+
+    graph.add_edge("memory_write", END)
+
     
     # Legacy paths (Linear flow components) - unlikely to be hit directly now but kept for safety/topology validity if edge cases arise
     graph.add_edge("extract", "risk")

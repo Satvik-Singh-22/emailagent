@@ -1,5 +1,10 @@
 from typing import TypedDict, Optional, List, Dict, Literal
 
+class Recipients(TypedDict):
+    to: List[str]
+    cc: List[str]
+    bcc: List[str]
+
 
 class EmailAgentState(TypedDict):
     # ===== Session / Control =====
@@ -27,7 +32,11 @@ class EmailAgentState(TypedDict):
     # ===== Drafting =====
     draft: Optional[str]
     subject: Optional[str]
-    recipient: Optional[str]
+    body: Optional[str]
+    recipient: Optional[Recipients]
+    attachments: Optional[List[str]]
+
+    edit_instructions: Optional[str]
 
     # ===== Approval =====
     approval_decision: Optional[
@@ -36,3 +45,7 @@ class EmailAgentState(TypedDict):
 
     # ===== Sending =====
     sent: Optional[bool]
+
+    # ===== Reasoning =====
+    show_reasoning: Optional[bool]
+    reasoning: Optional[List[str]]

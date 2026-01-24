@@ -18,7 +18,7 @@ def call_gemini(prompt: str) -> str:
 def interpret_intent(user_prompt: str) -> dict:
     """
     Classifies the user prompt into a structured intent.
-    Returns dict with keys: 'intent', 'parameters'.
+    Returns JSON string with keys: 'intent', 'parameters'.
     Intents: CHECK_INBOX, COMPOSE, EXIT, UNKNOWN
     """
     system_instruction = (
