@@ -18,3 +18,7 @@ google-api-python-client==2.188.0
 
 # Gemini / Google GenAI
 google-genai==1.59.0
+
+
+# Superbase
+supabase==2.27.2
