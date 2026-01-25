@@ -42,11 +42,15 @@ def build_graph():
     graph.add_node("memory_retrieve", memory_retrieve_node)
 
     # Entry Point -> Input Agent (Router)
-    # graph.set_entry_point("input_agent")
-    graph.set_entry_point("memory_retrieve")
-    graph.add_edge("memory_retrieve", "input_agent")
-
-
+    graph.set_entry_point("input_agent")
+    
+    def memory_retrieve_router(state):
+    # inbox reply path
+        if state.get("mode") == "REPLY" or state.get("user_action") == "REPLY":
+            return "draft"
+        # compose path
+        return "compose"
+        
     # Router Logic
     graph.add_conditional_edges(
         "input_agent",
@@ -54,10 +58,20 @@ def build_graph():
         {
             "CHECK_INBOX": "fetch",
             "REPLY": "fetch",
-            "COMPOSE": "compose",
+            "COMPOSE": "memory_retrieve",
             "UNKNOWN": "memory_write"
         }
     )
+
+    graph.add_conditional_edges(
+        "memory_retrieve",
+        memory_retrieve_router,
+        {
+            "draft": "draft",
+            "compose": "compose"
+        }
+    )
+
 
 
     # Inbox Path
@@ -70,10 +84,19 @@ def build_graph():
         lambda s: s.get("user_action"),
         {
             "SUMMARIZE": "summarize",
-            "REPLY": "draft",
+            "REPLY": "draft",  # TODO: memory_retrieve
             "DONE": "memory_write"
         }
     )
+
+    # graph.add_conditional_edges(
+    #     "memory_retrieve",
+    #     memory_retrieve_router,
+    #     {
+    #         "draft": "draft",
+    #         "compose": "compose"
+    #     }
+    # )
 
 
     # Summarize loops back to list

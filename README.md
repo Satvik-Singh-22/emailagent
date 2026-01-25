@@ -1,288 +1,308 @@
-# 📧 Email Agent with AI Memory System
+# EmailAgent
 
-An intelligent email agent powered by LangGraph and Gemini, with episodic memory using Supabase vector embeddings.
+EmailAgent is a command-line assistant for reading, drafting, and sending email. It is designed to be safe, stateful, and predictable. Drafts are created from explicit user intent, replies preserve Gmail thread context and messages are only sent after explicit user approval.
 
----
 
-## 🚀 Quick Start
-
-### 1. Prerequisites
-
-- Python 3.10+
-- Gmail account
-- Google Cloud Project with Gmail API enabled
-- Gemini API key
-- (Optional) Supabase account for memory features
-
-### 2. Installation
-
-```bash
-# Clone the repository
-cd emailagent
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### 3. Gmail Setup
-
-1. **Get Gmail API Credentials:**
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project or select existing one
-   - Enable Gmail API
-   - Create OAuth 2.0 credentials (Desktop app)
-   - Download `credentials.json` and place in project root
-
-2. **Configure credentials:**
-   - Make sure `credentials.json` exists in the project root
-   - On first run, you'll be prompted to authenticate via browser
-
-### 4. Environment Configuration
-
-```bash
-# Copy .env.example to .env
-cp .env.example .env
-```
-
-Edit `.env` and add your API keys:
-
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_ENABLED=true
-
-# Optional: Enable Supabase for memory features
-SUPABASE_ENABLED=false
-```
-
-Get Gemini API key from: [Google AI Studio](https://aistudio.google.com/app/apikey)
-
-### 5. (Optional) Supabase Setup for Memory Features
-
-For full episodic memory and context-aware responses, set up Supabase:
-
-**📖 Follow the detailed guide: [SUPABASE_SETUP_GUIDE.md](SUPABASE_SETUP_GUIDE.md)**
-
-Quick steps:
-1. Create Supabase project
-2. Run `supabase_setup.sql` in SQL Editor
-3. Update `.env` with your credentials
-4. Set `SUPABASE_ENABLED=true`
-5. Test with `python test_supabase.py`
-
-### 6. Run the Agent
-
-```bash
-python main.py
-```
 
 ---
 
-## 📋 Features
+## What this tool does
 
-✅ **Smart Email Classification**
-- Priority detection (HIGH/MEDIUM/LOW)
-- Category classification (ACTION/FYI/LEGAL/etc.)
-- Intent recognition (REPLY/SCHEDULE/ESCALATE/etc.)
+- Presents recent email threads and allows interactive selection.  
+- Creates context-aware reply drafts using the full original message body.  
+- Preserves email threading by sending replies with the correct Gmail metadata.
+- Lets you edit drafts, review them, and explicitly approve before sending.  
+- Enforces safety rules (no automatic sends, no placeholders, conservative drafting for risky content).
 
-✅ **Email Composition**
-- AI-powered draft generation
-- Context-aware responses
-- Tone and style customization
-
-✅ **Memory System** (with Supabase)
-- Remembers past interactions
-- Learns your preferences
-- Context-aware suggestions
-
-✅ **Gmail Integration**
-- Fetch recent emails
-- Send emails
-- Thread management
 
 ---
 
-## 🧪 Testing
+## Quick start
 
-### Test Supabase Connection
+1. **Clone repository and checkout branch**
+   ```bash
+   git clone https://github.com/Satvik-Singh-22/emailagent.git
+   cd emailagent
+    ```
+2. **Create and activate a Python virtual environment**
 
-```bash
-python test_supabase.py
+   ```bash
+   python -m venv venv
+   source venv/bin/activate   # Linux / macOS
+   # venv\Scripts\activate    # Windows (PowerShell)
+   ```
+
+3. **Install dependencies**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Obtain and configure Gmail API credentials**
+
+   * Enable the Gmail API in Google Cloud Console.
+   * Create OAuth 2.0 client credentials and download the JSON file.
+   * Place the downloaded credentials file in the **project root directory** (same level as `main.py`).
+
+5. **Provide LLM and database API keys**
+
+   * An example environment file is provided as `.env.example`.
+
+   Steps:
+   1. Create a new file named `.env` in the project root.
+   2. Copy the contents of `.env.example` into `.env`.
+   3. Replace the placeholder values with your actual keys (e.g., Gemini API key).
+
+6. **Run the program**
+
+   ```bash
+   python main.py
+   ```
+
+---
+
+## Configuration (environment variables)
+
+Runtime configuration is handled via a `.env` file in the project root.
+
+The repository includes a template:
+- `.env.example` — reference template (do not modify directly)
+
+You must create:
+- `.env` — actual environment configuration
+
+Required variables:
+
+- `GEMINI_API_KEY` — API key for the Gemini LLM.
+- Any additional variables listed in `.env.example` that are required by your setup.
+
+Gmail OAuth credentials:
+- The OAuth client credentials JSON file must be present in the **root directory**.
+- The application uses the local authentication flow defined in the codebase to access Gmail.
+
+---
+
+## Supabase Database Setup (Memory & Retrieval)
+
+The project uses **Supabase** to store agent episodes, reply history, and embeddings for future retrieval and context-awareness.
+
+This section explains how to create the required tables and enable vector embeddings.
+
+---
+
+### 1. Agent Episodes Table
+
+Stores a high-level record of each agent interaction (compose, reply, etc.).
+
+```sql
+create table agent_episodes (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+
+  intent text not null,
+  outcome text not null,
+
+  created_at timestamptz default now()
+);
 ```
 
-This verifies:
-- Environment variables
-- Supabase connection
-- Database schema
-- RPC functions
-- Embedding generation
+**Purpose**
 
-### Test Basic Functionality
+* Tracks what the agent attempted (intent)
+* Records the final outcome (sent, canceled, edited, etc.)
+* Acts as a parent record for memory tables
 
-```bash
-python test.py
+---
+
+### 2. Reply Memory Table
+
+Stores memory for **reply flows**, including summaries and vector embeddings for semantic retrieval.
+
+```sql
+create table reply_memory (
+  id uuid primary key default gen_random_uuid(),
+  episode_id uuid references agent_episodes(id) on delete cascade,
+
+  original_email_summary text not null,
+  reply_summary text not null,
+
+  reply_body text,
+  reply_embedding vector(768),
+
+  metadata jsonb,
+  created_at timestamptz default now()
+);
 ```
 
----
+**Purpose**
 
-## 📁 Project Structure
-
-```
-emailagent/
-├── app/
-│   ├── classification/    # Email classification logic
-│   ├── config/           # Configuration
-│   ├── gmail/            # Gmail API integration
-│   ├── graph/            # LangGraph workflow
-│   ├── guardrails/       # Safety checks
-│   ├── llm/              # LLM integrations (Gemini/Ollama)
-│   ├── memory/           # Episodic memory system
-│   ├── nodes/            # Graph nodes
-│   ├── policy/           # Business rules
-│   └── utils/            # Utilities
-├── credentials.json      # Gmail OAuth credentials
-├── .env                  # Environment variables
-├── main.py              # Entry point
-├── requirements.txt      # Dependencies
-├── supabase_setup.sql   # Database schema
-└── SUPABASE_SETUP_GUIDE.md  # Detailed Supabase guide
-```
+* Captures what the original email was about
+* Stores how the agent replied
+* Saves embeddings  for similarity search
+* Enables future context reuse and personalization
 
 ---
 
-## 🔧 Configuration
+### 3. Compose Prompt Memory Table
 
-### Environment Variables
+Stores memory for **new email composition** flows.
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `GEMINI_API_KEY` | Google Gemini API key | Yes |
-| `GEMINI_ENABLED` | Enable Gemini LLM | Yes |
-| `SUPABASE_URL` | Supabase project URL | No* |
-| `SUPABASE_KEY` | Supabase anon key | No* |
-| `SUPABASE_ENABLED` | Enable memory features | No* |
+```sql
+create table compose_prompt_memory (
+  id uuid primary key default gen_random_uuid(),
+  episode_id uuid references agent_episodes(id) on delete cascade,
 
-\* Required only for memory features
+  user_prompt text not null,
+  draft_summary text not null,
+  draft_body text,
 
----
-
-## 💡 Usage Examples
-
-### Check Inbox
-```
-You: show me last 10 mails
+  metadata jsonb,
+  created_at timestamptz default now()
+);
 ```
 
-### Compose Email
+**Purpose**
+
+* Remembers how users phrase compose requests
+* Stores generated draft summaries and bodies
+* Useful for improving future drafting and retrieval
+
+---
+
+### 4. Priority Email Memory Table
+
+Stores memory for **high-priority emails** (for example, urgent or critical messages) along with vector embeddings for later retrieval and analysis.
+
+```sql
+create table priority_email_memory (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+
+  email_summary text not null,
+  priority text not null check (priority in ('HIGH')),
+
+  category text,
+  source text,
+
+  email_embedding vector(768),
+  metadata jsonb,
+
+  created_at timestamptz default now()
+);
+````
+
+**Purpose**
+
+* Persists summaries of high-priority emails
+* Stores semantic embeddings for retrieval and ranking
+* Enables long-term prioritization and learning
+* Can be used for alerting, dashboards, or recall of critical messages
+
+---
+
+### 5. Vector Similarity Functions (Retrieval)
+
+The following SQL functions enable **semantic retrieval** from stored memory using pgvector embeddings.
+
+These functions are used to retrieve relevant past replies or compose prompts based on similarity to the current query.
+
+---
+
+#### 5.1 Match Reply Memory
+
+Retrieves the most similar past replies for a given user.
+
+```sql
+create or replace function match_reply_memory (
+  query_embedding vector(768),
+  match_user_id text,
+  match_count int
+)
+returns table (
+  reply_summary text,
+  original_email_summary text,
+  similarity float
+)
+language sql
+stable
+as $$
+  select
+    rm.reply_summary,
+    rm.original_email_summary,
+    1 - (rm.reply_embedding <-> query_embedding) as similarity
+  from reply_memory rm
+  join agent_episodes ae on rm.episode_id = ae.id
+  where ae.user_id = match_user_id
+  order by rm.reply_embedding <-> query_embedding
+  limit match_count;
+$$;
 ```
-You: compose an email to john@example.com about the meeting tomorrow
+
+**Use case**
+
+* Retrieve similar past replies
+* Maintain consistency in tone and structure
+* Improve contextual awareness across sessions
+
+---
+
+#### 5.2 Match Compose Prompt Memory
+
+Retrieves similar **successful compose prompts** for a user.
+
+```sql
+create or replace function match_compose_prompt_memory (
+  query_embedding vector(768),
+  match_user_id text,
+  match_count int
+)
+returns table (
+  user_prompt text,
+  draft_summary text,
+  metadata jsonb,
+  outcome text,
+  similarity float
+)
+language sql
+stable
+as $$
+  select
+    cpm.user_prompt,
+    cpm.draft_summary,
+    cpm.metadata,
+    ae.outcome,
+    1 - (cpm.prompt_embedding <-> query_embedding) as similarity
+  from compose_prompt_memory cpm
+  join agent_episodes ae on cpm.episode_id = ae.id
+  where ae.user_id = match_user_id
+    and ae.outcome in ('SENT', 'APPROVED')
+  order by cpm.prompt_embedding <-> query_embedding
+  limit match_count;
+$$;
 ```
 
-### Reply to Email
-```
-You: reply to the last email from Sarah
-```
+**Use case**
+
+* Learn from previously approved or sent drafts
+* Improve future email composition quality
+* Personalize drafting style per user
 
 ---
 
-## 🐛 Troubleshooting
+### 6. How Memory Is Used by the Agent
 
-### ❌ `Error: [Errno 2] No such file or directory: 'credentials.json'`
+At a high level:
 
-**Solution:** Make sure `credentials.json` exists in the project root. Download it from Google Cloud Console.
+* Each interaction creates an entry in `agent_episodes`
+* Reply flows persist summaries and embeddings in `reply_memory`
+* Compose flows persist prompts and drafts in `compose_prompt_memory`
+* High-priority emails are stored separately in `priority_email_memory`
+* Vector similarity functions enable semantic recall during drafting
 
-### ❌ `Memory retrieval RPC failed: [Errno 11001] getaddrinfo failed`
+This design allows the agent to:
 
-**Solution:** This means Supabase isn't configured. Either:
-- Set up Supabase following [SUPABASE_SETUP_GUIDE.md](SUPABASE_SETUP_GUIDE.md)
-- Or set `SUPABASE_ENABLED=false` in `.env` (agent will work without memory)
-
-### ❌ `relation "episodic_memory" does not exist`
-
-**Solution:** Run the SQL schema from `supabase_setup.sql` in your Supabase SQL Editor.
-
-### ❌ Gmail authentication issues
-
-**Solution:** 
-1. Delete `token.pickle` if it exists
-2. Run `python main.py` again
-3. Complete browser authentication flow
+* Remain stateless at runtime
+* Build long-term personalized memory
+* Improve drafting quality over time without re-training models
 
 ---
-
-## 🔐 Security Notes
-
-- Never commit `.env` or `credentials.json` to version control
-- Use environment variables for all secrets
-- Enable RLS (Row Level Security) in Supabase for production
-- Keep your Gemini API key secure
-
----
-
-## 📚 Documentation
-
-- [Supabase Setup Guide](SUPABASE_SETUP_GUIDE.md) - Complete Supabase setup
-- [LangGraph Docs](https://langchain-ai.github.io/langgraph/) - Workflow framework
-- [Gmail API Docs](https://developers.google.com/gmail/api) - Gmail integration
-- [Gemini API Docs](https://ai.google.dev/docs) - LLM and embeddings
-
----
-
-## 🛠️ Development
-
-### Run with debugging
-```bash
-python main.py
-```
-
-### Test Supabase connection
-```bash
-python test_supabase.py
-```
-
-### View logs
-The agent prints detailed logs to console for debugging.
-
----
-
-## 📊 Memory System
-
-When enabled, the agent stores:
-- User intents and outcomes
-- Email metadata
-- Conversation context
-- User preferences (tone, style, etc.)
-
-This enables:
-- Context-aware responses
-- Personalized email composition
-- Learning from past interactions
-- Smart suggestions
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
----
-
-## 📄 License
-
-MIT License - feel free to use for personal or commercial projects
-
----
-
-## 🆘 Need Help?
-
-1. Check [SUPABASE_SETUP_GUIDE.md](SUPABASE_SETUP_GUIDE.md) for Supabase issues
-2. Run `python test_supabase.py` to diagnose problems
-3. Check console logs for detailed error messages
-4. Ensure all environment variables are set correctly
-
----
-
-**Happy emailing! 📧🤖**

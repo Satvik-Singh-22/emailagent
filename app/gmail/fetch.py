@@ -1,10 +1,14 @@
 import base64
 
-def fetch_recent_emails(service, max_results=5):
-    results = service.users().messages().list(
-        userId="me",
-        maxResults=max_results
-    ).execute()
+def fetch_recent_emails(service, max_results=5, query=None):
+    kwargs = {
+        "userId": "me",
+        "maxResults": max_results
+    }
+    if query:
+        kwargs["q"] = query
+
+    results = service.users().messages().list(**kwargs).execute()
 
     messages = results.get("messages", [])
     emails = []
