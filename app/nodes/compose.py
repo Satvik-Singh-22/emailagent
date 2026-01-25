@@ -43,6 +43,15 @@ def compose_node(state):
 
     # ================= EDIT MODE (JSON ONLY) =================
     if edit_instructions:
+
+        safe_subject = json.dumps(subject)
+        safe_to = json.dumps(to_list)
+        safe_cc = json.dumps(cc_list)
+        safe_bcc = json.dumps(bcc_list)
+        safe_attachments = json.dumps(attachments)
+        safe_body = json.dumps(current_draft)
+        safe_edit = json.dumps(edit_instructions)
+
         add_reasoning(state, "User requested edits — applying requested changes while preserving unchanged fields.")
         llm_prompt = f"""
 You are a STRICT EMAIL EDITOR.
@@ -65,40 +74,39 @@ JSON SCHEMA (MUST MATCH EXACTLY):
 
 Current Email:
 {{
-  "subject": "{subject}",
+  "subject": {safe_subject},
   "recipient": {{
-    "to": {to_list},
-    "cc": {cc_list},
-    "bcc": {bcc_list}
+    "to": {safe_to},
+    "cc": {safe_cc},
+    "bcc": {safe_bcc}
   }},
-  "attachments": {attachments},
-  "body": "{current_draft}"
+  "attachments": {safe_attachments},
+  "body": {safe_body}
 }}
 
 User Requested Changes:
-{edit_instructions}
+{safe_edit}
 
 IMPORTANT:
-- The following fields are MUTABLE ARRAYS and MUST be updated deterministically if mentioned:
-  - recipient.to
-  - recipient.cc
-  - recipient.bcc
-  - attachments
+
+- The following fields are mutable arrays and MUST be updated deterministically if mentioned:
+  recipient.to, recipient.cc, recipient.bcc, attachments
 
 - Apply add/remove operations EXACTLY as requested.
-- If an item is removed, it MUST NOT appear in the output array.
-- If an item is added, it MUST appear in the correct output array.
-- If a field is NOT mentioned by the user, copy it unchanged.
+- Removed items MUST NOT appear in the output.
+- Added items MUST appear in the correct array.
+- Fields not mentioned by the user MUST be copied unchanged.
 - You MUST NOT ignore requested changes.
 
-- Do NOT add placeholders like [Your Name].
-- Preserve the existing signature OR use 'Email Agent' OR leave blank.
-
+- Preserve the existing tone unless the user explicitly requests a tone change.
+- Do NOT add placeholders.
+- Preserve the existing signature; otherwise use "Email Agent" or leave blank.
 """
 
         raw = call_llm(llm_prompt, "compose").strip()
 
         try:
+            # print(raw)
             data = json.loads(raw)
         except json.JSONDecodeError:
             print("❌ Gemini failed to return valid JSON. Edit aborted.")
@@ -146,19 +154,20 @@ Style Guidelines (if applicable):
 {brevity_hint}
 
 Rules:
-- If Subject is missing, generate one.
+- If Subject is missing, generate one (MUST be ≤ 8 words).
 - Output format:
 
 SUBJECT: <subject>
 BODY:
 <email body>
 
-- Subject max 8 words.
-- Do NOT include To/CC/BCC in body.
-- No reasoning.
-- Do NOT add placeholders like [Your Name].
-- Preserve existing signature OR use 'Email Agent' OR leave blank.
-- Professional tone.
+- Do NOT include To/CC/BCC in the body.
+- Use a professional tone by default.
+- If the user explicitly requests a different tone, follow it exactly.
+- Do NOT add placeholders.
+- Preserve an existing signature; otherwise use "Email Agent" or leave blank.
+- No reasoning, explanations, or meta text.
+- Output email content only.
 """
 
     raw = call_llm(llm_prompt, "compose").strip()
