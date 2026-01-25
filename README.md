@@ -6,13 +6,39 @@ EmailAgent is a command-line assistant for reading, drafting, and sending email.
 
 ---
 
-## What this tool does
+## Key Functionalities
 
-- Presents recent email threads and allows interactive selection.  
-- Creates context-aware reply drafts using the full original message body.  
-- Preserves email threading by sending replies with the correct Gmail metadata.
-- Lets you edit drafts, review them, and explicitly approve before sending.  
-- Enforces safety rules (no automatic sends, no placeholders, conservative drafting for risky content).
+### 1. Smart Email Ingestion & Classification
+*   **Fetch & Organize**: Retrieves recent email threads from Gmail.
+*   **Granular Classification**: Automatically categorizes emails using a deterministic keyword-based engine (no LLM cost for this step):
+    *   **Sender Type**: Distinguishes between Humans, Organizations, and No-Reply bots.
+    *   **Intent**: Identifies if an email requires a reply, is purely informational, or is spam/junk.
+    *   **Priority Scoring**: assigns a priority score (High/Medium/Low) based on sender importance and keywords.
+
+### 2. Context-Aware Drafting (RAG)
+*   **Memory & Retrieval**: Utilizes **Supabase (pgvector)** to store and retrieve past interactions.
+*   **Adaptive Tone**: When drafting a reply or a new email, the agent searches `reply_memory` and `compose_prompt_memory` for similar past successful emails.
+*   **Thread Context**: Ingests the full body of previous messages in a thread to ensure replies are factually correct and contextually relevant.
+
+### 3. Interactive CLI Workflow
+*   **Inbox Review**: Browse through your classified inbox directly in the terminal.
+*   **Summarization**: On-demand summarization of long threads.
+*   **Looping Feedback**:
+    *   Drafts are presented for review.
+    *   You can choose to **EDIT** (refine the prompt and regenerate), **SEND**, or **CANCEL**.
+
+### 4. Safety & Human-in-the-Loop
+*   **No Auto-Send**: The agent *never* sends an email without explicit user confirmation.
+*   **Draft-First Approach**: All actions result in a Gmail draft first.
+*   **Automated Guardrails**:
+    *   **G1: PII Protection**: Scans drafts for sensitive data (SSNs, credit cards, API keys, passwords) and prevents accidental leakage.
+    *   **G2: Domain Restriction**: Validates recipient domains against allow/block lists. Automatically blocks sending PII to external/unauthorized domains.
+    *   **G3: Tone Enforcement**: Analyzes drafts for aggressive language, liability risks (e.g., "guarantee", "promise"), and unprofessional slang to maintain professional standards.
+*   **Risk Assessment**: (Optional/Legacy) Logic to flag potential risks in generated content.
+
+### 5. Long-term Memory
+*   **Agent Episodes**: Tracks every interaction session.
+*   **Learning**: As you edit and approve drafts, the system indexes the final version. Future drafts improve by learning from your specific writing style and preferences stored in the database.
 
 
 ---

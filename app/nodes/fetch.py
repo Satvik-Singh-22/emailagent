@@ -6,7 +6,9 @@ def fetch_node(state):
     Fetches emails from Gmail API based on filters in state.
     """
     filters = state.get("filter_criteria", {})
-    limit = filters.get("limit", 5)
+    limit = filters.get("limit")
+    if limit is None:
+        limit = 5
     
     # Check if we should filter by unread/time_range? 
     # Current fetch_recent_emails is basic. We pass limit.
