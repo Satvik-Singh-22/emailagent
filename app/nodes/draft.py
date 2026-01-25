@@ -53,7 +53,8 @@ Email intent: {classification.get("intent")}
 Risk flags: {risk_flags}
 
 STYLE & TONE:
-- Use a professional tone by default.
+- Match the tone of the original email as closely as possible.
+- If the original email's tone is unclear, default to a professional tone.
 - If the user explicitly requested a different tone earlier, preserve it exactly.
 - Be clear, polite, and context-aware.
 - Do NOT overcommit or speculate.
