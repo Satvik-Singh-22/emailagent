@@ -14,6 +14,11 @@ def memory_retrieve_node(state):
         state["episodic_memory"] = []
         return state
 
+    # If Supabase is not configured, skip memory retrieval
+    if supabase is None:
+        state["episodic_memory"] = []
+        return state
+
     try:
         query_embedding = embed_text(query_text)
     except Exception as e:
@@ -36,6 +41,7 @@ def memory_retrieve_node(state):
 
     except Exception as e:
         print("⚠️ Memory retrieval RPC failed:", e)
+        print("  This is OK if Supabase is not configured. Core email features will still work.")
         state["episodic_memory"] = []
 
     return state

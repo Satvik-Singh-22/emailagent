@@ -5,11 +5,17 @@ from app.memory.embeddings import embed_text
 def memory_write_node(state):
     """
     Persist a completed agent interaction as an episodic memory.
+    Gracefully handles cases where Supabase is not configured.
     """
     print("🧠 MEMORY STATE KEYS:", state.keys())
     print("🧠 intent:", state.get("intent"))
     print("🧠 user_intent:", state.get("user_intent"))
     print("🧠 mode:", state.get("mode"))
+
+    # If Supabase is not configured, skip memory write
+    if supabase is None:
+        print("ℹ️ Supabase not configured - skipping memory write")
+        return state
 
     # --- REQUIRED FIELDS ---
     user_id = state.get("user_id", "default_user")
@@ -54,7 +60,9 @@ def memory_write_node(state):
             "metadata": metadata,
             "embedding": embedding
         }).execute()
+        print("✅ Memory saved successfully")
     except Exception as e:
         print("⚠️ Memory write failed:", e)
+        print("  This is OK if Supabase is not configured. Core email features will still work.")
 
     return state
