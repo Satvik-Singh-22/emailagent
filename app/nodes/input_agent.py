@@ -30,24 +30,31 @@ def input_agent_node(state):
             "parameters": {
                 "recipient": {"to": [], "cc": [], "bcc": []},
                 "subject": None,
-                "body": None
+                "body": None,
+                "attachments": []
             },
             "filters": {
-                "priority": "ANY",
+                "priority": None,
                 "time_range": None,
-                "limit": 5
+                "limit": None
             }
         }
 
 
+
     state["mode"] = analysis["intent"]
-    state["filter_criteria"] = analysis["filters"]
+    filters = analysis.get("filters") or {}
+    state["filter_criteria"] = {
+        "priority": filters.get("priority"),
+        "time_range": filters.get("time_range"),
+        "limit": filters.get("limit")
+    }
 
     params = analysis["parameters"]
     state["recipient"] = params["recipient"]
     state["subject"] = params["subject"]
     state["body"] = params["body"]
-    state["attachments"] = params["attachments"]
+    state["attachments"] = params.get("attachments", [])
 
     add_reasoning(state, f"Detected intent: {state['mode']}.")
     if state["mode"] == "CHECK_INBOX":
@@ -58,5 +65,7 @@ def input_agent_node(state):
             add_reasoning(state, "Checking inbox with no special filters.")
     elif state["mode"] == "COMPOSE":
         add_reasoning(state, "Preparing to compose a new email.")
+    elif state["mode"] == "REPLY":
+        add_reasoning(state, "Reply intent detected; inbox context is required.")
         
     return state

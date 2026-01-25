@@ -7,10 +7,10 @@ def inbox_review_node(state):
     filters = state.get("filter_criteria", {})
     
     # 1. Filter Logic
-    # 1. Filter & Sort Logic
-    target_priority = filters.get("priority", "ANY")
-    limit = filters.get("limit", 5)
-    
+    target_priority = filters.get("priority")
+    limit = filters.get("limit")
+    if limit is None:
+        limit = len(emails)
     # Priority mapping for sorting
     prio_map = {"HIGH": 3, "MEDIUM": 2, "LOW": 1, "NOT_REQUIRED": 0, "MED": 2}
     
@@ -46,9 +46,9 @@ def inbox_review_node(state):
         # Actually input usually implies "Check inbox" -> show recent.
         # But if we sorted by priority above, we messed up time order.
         # For ANY, let's keep original order.
-        if target_priority == "ANY":
-             final_list = emails[:limit]
-             display_mode = "Recent"
+        if target_priority in [None, "ANY"]:
+            final_list = emails[:limit]
+            display_mode = "Recent" if target_priority else "All"
         else:
              # Specific filter logic (e.g. LOW only? Not supported yet really)
              final_list = [c[0] for c in candidates][:limit]
@@ -83,7 +83,16 @@ def inbox_review_node(state):
                 
                 # Load selected email into main context for other nodes
                 state["raw_thread"] = selected_email
+                state["reply_message_id"] = selected_email.get("message_id")
                 state["thread_id"] = selected_email.get("thread_id")
+                from_addr = selected_email.get("from")
+
+                if from_addr:
+                    state["recipient"] = {
+                        "to": [from_addr],
+                        "cc": [],
+                        "bcc": []
+                    }
                 # Also copy classification if available
                 if "classification" in selected_email:
                     state["classification"] = selected_email["classification"]

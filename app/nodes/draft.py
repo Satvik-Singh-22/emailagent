@@ -3,7 +3,8 @@ from app.llm.router import call_llm
 
 def draft_node(state):
     summary = state.get("summary", "")
-    extracted = state.get("extracted_details", {})
+    raw_thread = state.get("raw_thread", {})
+    # print(raw_thread)
     classification = state.get("classification", {})
     risk_flags = state.get("risk_flags", [])
     approval_status = state.get("approval_status", "REQUIRED")
@@ -11,36 +12,64 @@ def draft_node(state):
     # If approval is required, draft must be extra conservative
     conservative_mode = approval_status == "REQUIRED"
 
-    prompt = f"""
+    prompt = fprompt = f"""
 You are an email reply drafting assistant.
 
-STRICT RULES:
-- Produce a reply DRAFT ONLY
-- Do NOT send anything
-- Do NOT make legal or financial commitments
-- Do NOT confirm agreements or obligations
-- Keep tone professional and neutral
-- Ask clarifying questions if needed
+TASK:
+Write a professional REPLY to an existing email.
+This is a DRAFT ONLY.
 
-Context summary:
+Context:
+Conversation summary:
 {summary}
 
-Extracted details:
-{extracted}
+Original email being replied to:
+From: {raw_thread.get("from")}
+Subject: {raw_thread.get("subject")}
+Body:
+{raw_thread.get("body")}
 
 Email category: {classification.get("category")}
-Intent: {classification.get("intent")}
+Email intent: {classification.get("intent")}
 Risk flags: {risk_flags}
 
-Drafting instructions:
-{"Use cautious language and ask for clarification." if conservative_mode else "Respond concisely and helpfully."}
+STYLE & TONE:
+- Use a professional tone by default.
+- If the user explicitly requested a different tone earlier, preserve it exactly.
+- Be clear, polite, and context-aware.
+- Do NOT overcommit or speculate.
 
-Write the draft reply text only.
+STRICT RULES:
+- Produce a reply DRAFT ONLY.
+- Do NOT send anything.
+- Do NOT make legal, financial, or contractual commitments.
+- Do NOT confirm agreements, deadlines, or obligations unless explicitly stated in the original email.
+- Ask clarifying questions if information is missing or ambiguous.
+- Do NOT add placeholders (e.g., [Sender Name], [Your Name]).
+- Preserve the existing signature if present; otherwise use "Email Agent" or leave blank.
+- Do NOT mention To / CC / BCC in the body.
+- No reasoning, explanations, or meta text.
+- Never reference the system, context extraction, or drafting process.
+
+RESPONSE BEHAVIOR:
+If the original email content is missing or unclear:
+- Do NOT mention missing context, system limitations, or lack of access.
+- Write a natural human reply that politely asks the sender to clarify or expand.
+- Assume the sender understands the context better than you.
+
+OUTPUT FORMAT (STRICT):
+<reply body text only>
 """
+
 
     raw_response = call_llm(prompt, "drafting")
 
     draft = raw_response.strip()
+    subject = state["raw_thread"].get("subject", "")
+    if subject and not subject.lower().startswith("re:"):
+        subject = f"Re: {subject}"
+    state["subject"] = subject
+    state["subject"] = subject
 
     # Absolute safety fallback
     if not draft:

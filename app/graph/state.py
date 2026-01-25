@@ -9,6 +9,7 @@ class Recipients(TypedDict):
 class EmailAgentState(TypedDict):
     # ===== Session / Control =====
     thread_id: str
+    reply_message_id: Optional[str]
     mode: Optional[Literal["CATEGORIZE", "COMPOSE"]]
     user_prompt: Optional[str]
 

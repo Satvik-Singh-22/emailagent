@@ -53,8 +53,8 @@ def build_graph():
         lambda s: s.get("mode"),
         {
             "CHECK_INBOX": "fetch",
+            "REPLY": "fetch",
             "COMPOSE": "compose",
-            "EXIT": "memory_write",
             "UNKNOWN": "memory_write"
         }
     )
@@ -70,7 +70,7 @@ def build_graph():
         lambda s: s.get("user_action"),
         {
             "SUMMARIZE": "summarize",
-            "REPLY": "compose",
+            "REPLY": "draft",
             "DONE": "memory_write"
         }
     )
@@ -81,6 +81,8 @@ def build_graph():
 
     # Compose Path (Iterative)
     graph.add_edge("compose", "review")
+    graph.add_edge("draft", "review")
+
 
     def review_router(state):
         action = state.get("user_action")

@@ -58,7 +58,11 @@ def send_node(state):
             cc=cc_str,
             bcc=bcc_str,
             attachments=state.get("attachments"),
+            thread_id=state.get("thread_id"),
+            in_reply_to=state.get("reply_message_id"),
+            references=state.get("reply_message_id"),
         )
+
         # print("✅ Email sent successfully.")
         add_reasoning(state, "Email sent.")
 
