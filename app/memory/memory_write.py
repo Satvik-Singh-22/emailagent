@@ -109,6 +109,7 @@ def memory_write_node(state):
                 "metadata": {
                     "tone": state.get("draft_metadata", {}).get("tone"),
                     "brevity": state.get("draft_metadata", {}).get("brevity"),
+                    "summary": state.get("draft_metadata", {}).get("summary"),
                 }
             }
             supabase.from_("compose_prompt_memory").insert(compose_data).execute()

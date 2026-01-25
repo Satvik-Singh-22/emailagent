@@ -2,7 +2,7 @@ from app.llm.router import call_llm
 from app.utils.reasoning import add_reasoning
 import json
 from app.memory.memory_utils import summarize_compose_memory
-
+from app.utils.json_cleaner import *
 
 def compose_node(state):
     prompt = state.get("user_prompt", "")
@@ -10,7 +10,7 @@ def compose_node(state):
     current_draft = state.get("draft", "")
 
     recipients = state["recipient"]
-    attachments = state["attachments"]
+    attachments = state["attachments"] or []
     subject = state.get("subject")
     body_hint = state.get("body")
 
@@ -32,13 +32,7 @@ def compose_node(state):
         if memory_prefs.get("brevity") == "concise"
         else ""
     )
-
-
-    def join(lst):
-        return ", ".join(lst) if lst else ""
     
-
-
 
     # ================= EDIT MODE (JSON ONLY) =================
     if edit_instructions:
@@ -49,54 +43,50 @@ You are a STRICT EMAIL EDITOR.
 Return ONLY valid JSON.
 NO prose. NO explanations. NO markdown.
 
-JSON SCHEMA (MUST MATCH EXACTLY):
-
+Current Email State:
 {{
-  "subject": string,
-  "recipient": {{
-    "to": string[],
-    "cc": string[],
-    "bcc": string[]
-  }},
-  "attachments": string[],
-  "body": string
-}}
-
-Current Email:
-{{
-  "subject": "{subject}",
+  "subject": {json.dumps(subject)},
+  "draft": {json.dumps(current_draft)},
   "recipient": {{
     "to": {to_list},
     "cc": {cc_list},
     "bcc": {bcc_list}
   }},
   "attachments": {attachments},
-  "body": "{current_draft}"
+  "tone": {json.dumps(state.get("tone"))},
+  "brevity": {json.dumps(state.get("brevity"))},
+  "summary": {json.dumps(state.get("summary"))}
 }}
 
 User Requested Changes:
 {edit_instructions}
 
-IMPORTANT:
-- The following fields are MUTABLE ARRAYS and MUST be updated deterministically if mentioned:
-  - recipient.to
-  - recipient.cc
-  - recipient.bcc
-  - attachments
+Rules:
+- Apply add/remove operations EXACTLY as requested
+- recipient.to / cc / bcc and attachments are MUTABLE ARRAYS
+- If a field is NOT mentioned, copy it unchanged
+- Do NOT add placeholders like [Your Name]
 
-- Apply add/remove operations EXACTLY as requested.
-- If an item is removed, it MUST NOT appear in the output array.
-- If an item is added, it MUST appear in the correct output array.
-- If a field is NOT mentioned by the user, copy it unchanged.
-- You MUST NOT ignore requested changes.
+JSON SCHEMA (MUST MATCH EXACTLY):
 
-- Do NOT add placeholders like [Your Name].
-- Preserve the existing signature OR use 'Email Agent' OR leave blank.
-
+{{
+  "subject": string,
+  "draft": string,
+  "recipient": {{
+    "to": string[],
+    "cc": string[],
+    "bcc": string[]
+  }},
+  "attachments": string[],
+  "tone": string,
+  "brevity": string,
+  "summary": string
+}}
 """
 
-        raw = call_llm(llm_prompt, "compose").strip()
 
+        raw = call_llm(llm_prompt, "compose").strip()
+        raw= clean_json(raw)
         try:
             data = json.loads(raw)
         except json.JSONDecodeError:
@@ -104,19 +94,11 @@ IMPORTANT:
             state["edit_instructions"] = None
             return state
 
-        # 🔒 Hard invariants
-        assert isinstance(data["recipient"]["to"], list)
-        assert isinstance(data["recipient"]["cc"], list)
-        assert isinstance(data["recipient"]["bcc"], list)
-        assert isinstance(data["attachments"], list)
-        assert isinstance(data["subject"], str)
-        assert isinstance(data["body"], str)
-
         # ✅ Apply Gemini edits
         state["subject"] = data["subject"]
         state["recipient"] = data["recipient"]
         state["attachments"] = data["attachments"]
-        state["draft"] = data["body"]
+        state["draft"] = data["draft"]
         state["approval_status"] = "REQUIRED"
         state["summary"] = f"Draft prepared for {join(data['recipient']['to']) or 'Unknown'}"
         state["risk_flags"] = ["USER_COMPOSE"]
@@ -124,68 +106,81 @@ IMPORTANT:
         add_reasoning(state, "Edits applied to draft.")
         return state
 
-    # ================= CREATE MODE (TEXT OK) =================
-    add_reasoning(state, "Creating a new email draft from the provided intent.")
+    # ================= CREATE MODE (JSON ONLY) =================
+    add_reasoning(state, "Creating a new email draft with metadata from the provided intent.")
     llm_prompt = f"""
 You are an email writing assistant.
 
-Task:
-Write a professional email.
+Return ONLY valid JSON.
+NO prose. NO explanations. NO markdown.
 
 Context:
 To: {join(to_list)}
 CC: {join(cc_list)}
 BCC: {join(bcc_list)}
-attachments: {attachments}
-Subject: {subject}
-Intent: {body_hint or prompt}
+Attachments: {attachments}
+Existing Subject: {subject}
+User Intent: {body_hint or prompt}
 
-Style Guidelines (if applicable):
+Style Hints:
 {tone_hint}
 {brevity_hint}
 
 Rules:
-- If Subject is missing, generate one.
-- Output format:
+- If subject is missing, generate one (max 8 words)
+- Do NOT add placeholders like [Your Name]
+- Preserve existing signature OR use 'Email Agent' OR leave blank
 
-SUBJECT: <subject>
-BODY:
-<email body>
+JSON SCHEMA (MUST MATCH EXACTLY):
 
-- Subject max 8 words.
-- Do NOT include To/CC/BCC in body.
-- No reasoning.
-- Do NOT add placeholders like [Your Name].
-- Preserve existing signature OR use 'Email Agent' OR leave blank.
-- Professional tone.
+{{
+  "subject": string,
+  "draft": string,
+  "recipient": {{
+    "to": string[],
+    "cc": string[],
+    "bcc": string[]
+  }},
+  "attachments": string[],
+  "tone": string,
+  "brevity": string,
+  "summary": string
+}}
 """
 
+
     raw = call_llm(llm_prompt, "compose").strip()
+    raw= clean_json(raw)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        print(raw)
+        print("❌ Gemini failed to return valid JSON. Fallback to simple creation.")
+        # Fallback is dangerous here if we need metadata, but for now let's just error or retry? 
+        # Ideally we'd retry. For this iteration, let's assume valid JSON or fail.
+        # To be safe, we can raise or return a basic error state, but let's try to recover if possible or just fail.
+        add_reasoning(state, "JSON generation failed.")
+        return state
 
-    # Simple parse for creation
-    subject_out = subject
-    body_lines = []
-    mode = None
 
-    for line in raw.splitlines():
-        line = line.strip()
-        if line.startswith("SUBJECT:"):
-            subject_out = line.replace("SUBJECT:", "").strip()
-        elif line.startswith("BODY:"):
-            mode = "BODY"
-            body_lines = []
-        elif mode == "BODY":
-            body_lines.append(line)
+    state["subject"] = data["subject"]
+    state["draft"] = data["draft"]
+    state["recipient"] = data["recipient"]
+    state["attachments"] = data["attachments"]
+    state["tone"] = data["tone"]
+    state["brevity"] = data["brevity"]
+    state["summary"] = data["summary"]
 
-    state["subject"] = subject_out
-    state["draft"] = "\n".join(body_lines).strip()
+    print(state["summary"])
     state["approval_status"] = "REQUIRED"
-    state["summary"] = f"Draft prepared for {join(to_list) or 'Unknown'}"
     state["risk_flags"] = ["USER_COMPOSE"]
-    add_reasoning(state, "Draft created.")
+
+    add_reasoning(state, "Draft and metadata created.")
+    
     state["draft_metadata"] = {
-      "tone": memory_prefs.get("tone") or "professional",
-      "brevity": memory_prefs.get("brevity") or "default",
+      "tone": data.get("metadata", {}).get("tone") or memory_prefs.get("tone") or "professional",
+      "brevity": data.get("metadata", {}).get("brevity") or memory_prefs.get("brevity") or "default",
+      "summary": data.get("metadata", {}).get("summary")
     }
 
     return state

@@ -49,3 +49,7 @@ class EmailAgentState(TypedDict):
     # ===== Reasoning =====
     show_reasoning: Optional[bool]
     reasoning: Optional[List[str]]
+
+    # ===== Metadata =====
+    tone: Optional[str]
+    brevity: Optional[str]
