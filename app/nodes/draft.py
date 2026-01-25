@@ -1,4 +1,5 @@
 from app.llm.router import call_llm
+from app.memory.memory_utils import summarize_compose_memory
 
 
 def draft_node(state):
@@ -11,6 +12,20 @@ def draft_node(state):
 
     # If approval is required, draft must be extra conservative
     conservative_mode = approval_status == "REQUIRED"
+    memories = state.get("reply_memory", []) or []
+    memory_prefs = summarize_compose_memory(memories)
+
+    tone_hint = (
+        f"Use a {memory_prefs['tone']} tone."
+        if memory_prefs.get("tone")
+        else ""
+    )
+
+    brevity_hint = (
+        "Keep the email concise."
+        if memory_prefs.get("brevity") == "concise"
+        else ""
+    )
 
     prompt = fprompt = f"""
 You are an email reply drafting assistant.
@@ -28,6 +43,10 @@ From: {raw_thread.get("from")}
 Subject: {raw_thread.get("subject")}
 Body:
 {raw_thread.get("body")}
+
+Style Guidelines (if applicable):
+{tone_hint}
+{brevity_hint}
 
 Email category: {classification.get("category")}
 Email intent: {classification.get("intent")}

@@ -4,17 +4,15 @@ def summarize_compose_memory(memories):
         "brevity": None,
     }
 
-    successful = [
-        m for m in memories
-        if m.get("intent") == "COMPOSE"
-        and m.get("outcome") in ("SENT", "APPROVED")
-    ]
-
-    if not successful:
+    if not memories:
         return prefs
+        
+    # The new memories come from 'compose_prompt_memory' or 'reply_memory'.
+    # They should have a 'metadata' field.
+    # We assume valid memories are passed (retrieval logic filters relevant ones).
 
     tones = []
-    for m in successful:
+    for m in memories:
         meta = m.get("metadata") or {}
         if meta.get("tone"):
             tones.append(meta["tone"])
@@ -22,5 +20,8 @@ def summarize_compose_memory(memories):
     if tones:
         prefs["tone"] = max(set(tones), key=tones.count)
 
-    prefs["brevity"] = "concise"
+    # Simplified logic: if we found any valid memory, default to concise if not specified
+    if memories:
+        prefs["brevity"] = "concise"
+        
     return prefs
