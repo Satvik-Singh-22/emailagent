@@ -83,6 +83,7 @@ def inbox_review_node(state):
                 
                 # Load selected email into main context for other nodes
                 state["raw_thread"] = selected_email
+                state["summary"]= selected_email
                 state["reply_message_id"] = selected_email.get("message_id")
                 state["thread_id"] = selected_email.get("thread_id")
                 from_addr = selected_email.get("from")

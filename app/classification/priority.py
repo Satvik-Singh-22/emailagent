@@ -50,7 +50,7 @@ class PriorityScorer:
         factors['sender_importance'] = sender_score
         score += sender_score
         
-        # Factor 2: Urgency keywords (0-20 points)
+        # Factor 2: Urgency keywords (0-35 points - increased from 30)
         urgency_score = self._score_urgency(intent)
         factors['urgency_keywords'] = urgency_score
         score += urgency_score
@@ -65,24 +65,51 @@ class PriorityScorer:
         factors['email_age'] = age_score
         score += age_score
         
-        # Factor 5: Thread context (0-10 points)
+        # Factor 5: Thread context (0-15 points - increased from 10)
         thread_score = self._score_thread(metadata)
         factors['thread_context'] = thread_score
         score += thread_score
         
-        # Factor 6: Special categories (0-5 points bonus)
+        # Factor 6: Special categories (0-20 points - increased from 5)
         category_score = self._score_category(intent)
         factors['special_category'] = category_score
         score += category_score
         
-        # Urgency Override: If urgency is high, push to at least MEDIUM priority (50)
-        # unless it's explicitly spam
-        if intent.urgency_score >= 15:
+        # Factor 7: Business context and impact (0-10 points NEW)
+        business_score = self._score_business_context(metadata, intent)
+        factors['business_impact'] = business_score
+        score += business_score
+        
+        # Urgency Override: If urgency is high, push to at least MEDIUM priority
+        if intent.urgency_score >= 18:
             score = max(score, 50)
             logger.info("Urgency override triggered: Score boosted to minimum 50")
         
-        # Ensure score is within 0-100
-        score = max(0, min(100, int(score)))
+        # Critical urgency = HIGH priority minimum
+        if intent.urgency_score >= 25:
+            score = max(score, 70)
+            logger.info("Critical urgency: Score boosted to minimum 70")
+        
+        # Multiple signals = compound priority
+        high_priority_signals = 0
+        if intent.urgency_score >= 15:
+            high_priority_signals += 1
+        if intent.action_required and intent.question_detected:
+            high_priority_signals += 1
+        if sender_score >= 30:
+            high_priority_signals += 1
+        if 'complaint' in intent.intents or 'legal' in intent.intents:
+            high_priority_signals += 1
+        if category_score >= 15:
+            high_priority_signals += 1
+        
+        # If multiple high-priority signals, boost score
+        if high_priority_signals >= 3:
+            score = int(score * 1.15)  # 15% boost for multiple signals
+            logger.info(f"Multiple priority signals ({high_priority_signals}): Score boosted by 15%")
+        
+        # Ensure score is within 0-150 (increased max from 100)
+        score = max(0, min(150, int(score)))
         
         # Determine priority level
         priority_level = self._determine_level(score)
@@ -117,7 +144,8 @@ class PriorityScorer:
         return sender_scores.get(classification.sender_type.value, 5)
     
     def _score_urgency(self, intent: IntentDetection) -> int:
-        return min(intent.urgency_score, 20)
+        """Score based on urgency keywords (0-35 points)"""
+        return min(intent.urgency_score, 35)
     
     def _score_action(self, intent: IntentDetection) -> int:
         """Score based on action required (0-15)"""
@@ -162,84 +190,150 @@ class PriorityScorer:
             return 0
     
     def _score_thread(self, metadata: EmailMetadata) -> int:
-        """Score based on thread context (0-10)"""
+        """Score based on thread context and content analysis (0-15)"""
         score = 0
         
-        # If it's a reply (has Re: in subject)
+        # If it's a reply (has Re: in subject) - ongoing conversation
         if metadata.subject.lower().startswith('re:'):
             score += 5
         
+        # Forward chains might be informational but less urgent
+        if metadata.subject.lower().startswith('fwd:'):
+            score += 1
+        
         # If user is in To: (not just CC)
-        # This would require knowing user's email - simplified here
         if metadata.recipients:
             score += 3
         
-        # Has attachments
+        # Has attachments - could be important documents
         if metadata.has_attachments:
-            score += 2
+            score += 4
+            # Check if subject mentions attachment/doc/file
+            subject_lower = metadata.subject.lower()
+            if any(word in subject_lower for word in ['attached', 'document', 'file', 'contract', 'agreement', 'invoice']):
+                score += 2
         
-        return min(score, 10)
-    
-    def _score_category(self, intent: IntentDetection) -> int:
-        """Score based on special categories (0-5 bonus)"""
-        score = 0
-        
-        # Legal or finance = high priority bonus
-        # 1. High Priority (+15)
-        if 'complaint' in intent.intents:
-            score += 15
-        elif 'invitation' in intent.intents:
-            score += 15
-            
-        # 2. Medium Priority (+5)
-        elif 'legal' in intent.intents:
-            score += 5
-        elif 'finance' in intent.intents:
-            score += 5
-        elif 'it' in intent.intents:
-            score += 5
-        elif 'hr' in intent.intents:
-            score += 5
-            
-        # 3. Low Priority (+3)
-        elif 'meeting' in intent.intents:
-            score += 3
+        # Long subject lines often contain more context/urgency
+        if len(metadata.subject) > 50:
+            score += 1
         
         return min(score, 15)
+    
+    def _score_category(self, intent: IntentDetection) -> int:
+        """Score based on special categories with nuanced priority (0-20)"""
+        score = 0
+        
+        # Critical categories (customer-facing, legal, complaints)
+        if 'complaint' in intent.intents:
+            score += 18  # Customer complaints = top priority
+            # Multiple complaint keywords = even more critical
+            if intent.urgency_score > 10:
+                score += 2
+        
+        # High priority categories
+        if 'legal' in intent.intents:
+            score += 12  # Legal matters can't wait
+        if 'finance' in intent.intents:
+            score += 10  # Money matters important
+        
+        # IT/Security issues
+        if 'it' in intent.intents:
+            score += 8
+            # If it's access/security related, boost more
+            if intent.urgency_score > 8:
+                score += 4
+        
+        # HR and invitations
+        if 'invitation' in intent.intents:
+            score += 8  # Invitations time-sensitive
+        if 'hr' in intent.intents:
+            score += 6
+        
+        # Meetings - depends on timing
+        if 'meeting' in intent.intents:
+            score += 5
+            # If it's urgent meeting scheduling
+            if any(kw in intent.urgency_keywords for kw in ['today', 'tomorrow', 'asap']):
+                score += 5
+        
+        return min(score, 20)
+    
+    def _score_business_context(self, metadata: EmailMetadata, intent: IntentDetection) -> int:
+        """NEW: Score business impact and contextual importance (0-10 points)"""
+        score = 0
+        text = (metadata.subject + " " + (metadata.body or "")).lower()
+        
+        # Check for automated/low-value emails (deduct points)
+        if any(word in text for word in ['newsletter', 'unsubscribe', 'automated', 'no-reply']):
+            score -= 5
+        
+        # Check for business-critical keywords
+        critical_business = ['revenue', 'contract', 'deal', 'legal', 'lawsuit', 
+                           'customer complaint', 'data breach', 'security incident']
+        if any(word in text for word in critical_business):
+            score += 8
+        
+        # Check for time-sensitive business ops
+        time_sensitive = ['deadline', 'by eod', 'by end of', 'expires', 'due date']
+        if any(phrase in text for phrase in time_sensitive):
+            score += 5
+        
+        # Check recipient count (mass emails = lower priority)
+        if hasattr(metadata, 'recipients') and len(metadata.recipients) > 20:
+            score -= 3
+        
+        return max(-5, min(score, 10))  # Range: -5 to 10
     
     def _determine_level(self, score: int) -> PriorityLevel:
         """
         S4: High Priority? Decision
         
-        Determines priority level based on score
+        Determines priority level based on score with refined thresholds
+        HIGH: 75-150 (requires immediate attention)
+        MEDIUM: 50-74 (respond within day)
+        LOW: 30-49 (can wait, but needs response)
+        NOT_REQUIRED: 0-29 (FYI, optional)
         """
-        if score >= self.threshold:
+        if score >= 75:  # Increased from 70
             return PriorityLevel.HIGH
-        elif score >= 50:
+        elif score >= 50:  # Increased from 45
             return PriorityLevel.MEDIUM
-        elif score >= 30:
+        elif score >= 30:  # Increased from 25
             return PriorityLevel.LOW
         else:
             return PriorityLevel.NOT_REQUIRED
     
     def _generate_reasoning(self, score: int, factors: dict,
                            level: PriorityLevel) -> str:
-        """Generate human-readable reasoning for priority score"""
+        """Generate detailed, actionable reasoning for priority score"""
         reasons = []
         
         # Sort factors by score
         sorted_factors = sorted(factors.items(), key=lambda x: x[1], reverse=True)
         
-        # Add top contributors
+        # Add top contributors with details
         for factor_name, factor_score in sorted_factors:
             if factor_score > 0:
                 reason = self._factor_to_reason(factor_name, factor_score)
                 if reason:
                     reasons.append(reason)
         
-        reasoning = f"Priority: {level.value.upper()} ({score}/100)"
+        # Create priority indicator
+        if level == PriorityLevel.HIGH:
+            indicator = "🔴 HIGH"
+        elif level == PriorityLevel.MEDIUM:
+            indicator = "🟡 MEDIUM"
+        elif level == PriorityLevel.LOW:
+            indicator = "🟢 LOW"
+        else:
+            indicator = "⚪ NOT REQUIRED"
+        
+        reasoning = f"{indicator} ({score}/150)"
+        
         if reasons:
-            reasoning += " - " + ", ".join(reasons[:3])  # Top 3 reasons
+            # Show top reasons
+            top_reasons = reasons[:4]  # Increased from 3 to 4
+            reasoning += " | " + ", ".join(top_reasons)
         
         return reasoning
     
@@ -251,7 +345,8 @@ class PriorityScorer:
             'action_required': f"Action needed (+{score})",
             'email_age': f"Recent email (+{score})",
             'thread_context': f"Active thread (+{score})",
-            'special_category': f"Special category (+{score})"
+            'special_category': f"Priority category (+{score})",
+            'business_impact': f"Business impact (+{score})"
         }
         
         return reason_map.get(factor_name, "")

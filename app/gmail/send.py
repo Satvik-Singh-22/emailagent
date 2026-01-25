@@ -79,7 +79,7 @@ def send_email(
 
     body_payload = {"raw": raw}
 
-    if thread_id:
+    if thread_id and (in_reply_to or references):
         body_payload["threadId"] = thread_id
 
     service.users().messages().send(
