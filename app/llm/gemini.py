@@ -22,57 +22,80 @@ def interpret_intent(user_prompt: str) -> dict:
     Intents: CHECK_INBOX, COMPOSE, EXIT, UNKNOWN
     """
     system_instruction = (
-'''        You are an email command interpreter for a CLI email agent.
+'''
+You are an email command interpreter for a CLI email agent.
 
-Your task is to classify the user's message into EXACTLY ONE of the following intents:
+Classify the user's message into EXACTLY ONE of these intents:
 
 INTENTS:
-1. CHECK_INBOX  
-   - User wants to read, check, search, filter, or list emails.
-   - Examples: "check my inbox", "show unread mails", "any urgent emails?"
 
-2. COMPOSE  
-   - User wants to write, draft, reply to, or send an email.
-   - Examples: "write an email to HR", "mail my professor about deadline"
+1. CHECK_INBOX
+- User wants to read, check, search, filter, or list emails.
+- Also use CHECK_INBOX when the user requests an action that REQUIRES existing emails (e.g., reply).
+- Examples:
+  - "check my inbox"
+  - "show unread mails"
+  - "any urgent emails?"
+  - "show last 5 mails"
 
-3. EXIT  
-   - User wants to quit, stop, or exit the application.
-   - Examples: "exit", "quit", "close the app"
+2. REPLY
+- User wants to reply to an EXISTING email.
+- This intent REQUIRES inbox context.
+- Examples:
+  - "reply to last mail"
+  - "reply to that email"
+  - "respond to the email from Supabase"
+- If the user says "last" or "most recent", set filters.limit = 1.
+- If the user specifies "last N mails" set filters.limit to N.
+- If the user does not specify selection details, leave filters null so the caller can fetch and ask the user.
 
-4. UNKNOWN  
-   - Anything that does not clearly match the above.
+3. COMPOSE
+- User wants to write or draft a NEW email.
+- This intent does NOT require inbox context.
+- Examples:
+  - "write an email to HR"
+  - "mail my professor about deadline"
+
+4. UNKNOWN
+- Anything that does not clearly match the above.
 
 OUTPUT FORMAT (STRICT JSON ONLY):
 Do NOT include markdown, explanations, or extra text.
-  {
-    "intent": "CHECK_INBOX | COMPOSE | EXIT | UNKNOWN",
-    "parameters": {
-      "recipient":{
-        "to": [],
-        "cc": [],
-        "bcc": []
-      },
-      "subject": string | null,
-      "body": string | null,
-      "attachments": [],
-    },
-    "filters": {
-      "priority": "HIGH" | "MEDIUM" | "LOW" | "ANY",
-      "time_range": string | null, 
-      "limit": integer (default 5)
-    }
-  }
 
-  RULES:
-  - Always include all keys.
-  - If intent = CHECK_INBOX:
-    - Extract priority constraints (e.g., "important" -> HIGH, "urgent" -> HIGH).
-    - Extract time range (e.g., "last 5 days").
-    - Extract limit (e.g., "last 5 mails" -> 5).
-  - If intent = COMPOSE:
-    - Same rules as before for recipient/subject/body.
-    - Set filters to default (ANY, null, 5).
-'''    )
+{
+  "intent": "CHECK_INBOX | REPLY | COMPOSE | UNKNOWN",
+  "parameters": {
+    "recipient": {
+      "to": [],
+      "cc": [],
+      "bcc": []
+    },
+    "subject": string | null,
+    "body": string | null,
+    "attachments": []
+  },
+  "filters": {
+    "priority": "HIGH" | "MEDIUM" | "LOW" | "ANY" | null,
+    "time_range": string | null,
+    "limit": integer | null
+  }
+}
+
+RULES:
+- Always include all keys exactly as shown.
+- Do NOT invent defaults. Use null for any filter or parameter the user did not specify.
+- If intent = CHECK_INBOX or REPLY:
+  - Extract any explicit filters the user mentions (priority, time_range, limit).
+  - If the user says "last" or "most recent", set limit = 1.
+  - If no filters are specified by the user, return filters with null values (caller will fetch and ask).
+- If intent = COMPOSE:
+  - Extract recipient fields, subject, body, and attachments exactly as specified by the user.
+  - Do NOT add default recipients, subjects, or filters.
+  - If a field is not mentioned, use null (for strings) or an empty array (for recipient/attachments).
+- If intent = UNKNOWN:
+  - Leave parameters with null/empty values and filters null.
+'''
+   )
     
     response = client.models.generate_content(
         model="gemini-2.5-flash",

@@ -14,7 +14,10 @@ def send_email(
     approval_status,
     cc=None,
     bcc=None,
-    attachments=None
+    attachments=None,
+    thread_id=None,
+    in_reply_to=None,
+    references=None,
 ):
     if approval_status != "APPROVED":
         raise PermissionError("Email send blocked: approval required")
@@ -36,6 +39,12 @@ def send_email(
 
     message["To"] = normalize_header(to)
     message["Subject"] = subject or ""
+    if in_reply_to:
+        message["In-Reply-To"] = in_reply_to
+
+    if references:
+        message["References"] = references
+
 
     cc_header = normalize_header(cc)
     bcc_header = normalize_header(bcc)
@@ -68,7 +77,13 @@ def send_email(
 
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
+    body_payload = {"raw": raw}
+
+    if thread_id:
+        body_payload["threadId"] = thread_id
+
     service.users().messages().send(
         userId="me",
-        body={"raw": raw}
+        body=body_payload
     ).execute()
+
