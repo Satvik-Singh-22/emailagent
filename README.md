@@ -182,6 +182,9 @@ create table compose_prompt_memory (
   draft_summary text not null,
   draft_body text,
 
+  prompt_embedding vector(768),
+  draft_embedding vector(768),
+
   metadata jsonb,
   created_at timestamptz default now()
 );
@@ -247,6 +250,7 @@ create or replace function match_reply_memory (
 returns table (
   reply_summary text,
   original_email_summary text,
+  metadata jsonb,
   similarity float
 )
 language sql
@@ -255,6 +259,7 @@ as $$
   select
     rm.reply_summary,
     rm.original_email_summary,
+    rm.metadata,
     1 - (rm.reply_embedding <-> query_embedding) as similarity
   from reply_memory rm
   join agent_episodes ae on rm.episode_id = ae.id
